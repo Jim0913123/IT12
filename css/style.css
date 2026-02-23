@@ -5,6 +5,7 @@
     --primary-dark: #4f46e5;
     --primary-light: #818cf8;
     --secondary: #ec4899;
+    --secondary-dark: #db2777;
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
@@ -209,11 +210,22 @@ body {
     width: 260px;
     background: var(--dark);
     color: var(--white);
-    padding: 24px 0;
-    position: fixed;
     height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    padding: 24px 0;
     overflow-y: auto;
     z-index: 1000;
+    transition: transform 0.3s ease;
+}
+
+.sidebar.hidden {
+    transform: translateX(-100%);
+}
+
+.sidebar.active {
+    transform: translateX(0);
 }
 
 .sidebar-brand {
@@ -277,11 +289,92 @@ body {
     text-align: center;
 }
 
+/* Submenu - Default hidden */
+.submenu {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    padding: 0;
+    margin: 0;
+}
+
+/* Submenu visible */
+.submenu.active {
+    max-height: 500px;
+    opacity: 1;
+    padding: 5px 0;
+    margin-top: 5px;
+}
+
+/* Arrow */
+.dropdown-arrow {
+    margin-left: auto;
+    transition: transform 0.3s;
+}
+
+.dropdown-arrow.active {
+    transform: rotate(180deg);
+}
+
+/* Navigation submenu items */
+.submenu li {
+    margin-bottom: 2px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+}
+
+.sidebar-menu li .submenu.active li {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Staggered animation for submenu items */
+.sidebar-menu li .submenu.active li:nth-child(1) { transition-delay: 0.05s; }
+.sidebar-menu li .submenu.active li:nth-child(2) { transition-delay: 0.1s; }
+.sidebar-menu li .submenu.active li:nth-child(3) { transition-delay: 0.15s; }
+
+/* Submenu links styling */
+.submenu a {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px 10px 45px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 0;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.submenu a:hover {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--white);
+    padding-left: 50px;
+}
+
+.submenu .icon {
+    font-size: 14px;
+    width: 18px;
+    margin-right: 8px;
+}
+
+.submenu a.active {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--white);
+    border-left: 3px solid var(--primary);
+}
+
 /* Main Content */
 .main-content {
     flex: 1;
     margin-left: 260px;
     padding: 24px;
+    transition: margin-left 0.3s ease;
+}
+
+.main-content.full-width {
+    margin-left: 0;
 }
 
 /* Header */
@@ -296,10 +389,22 @@ body {
     align-items: center;
 }
 
-.header h1 {
-    font-size: 28px;
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-left h1 {
+    margin: 0;
+    font-size: 24px;
     font-weight: 700;
     color: var(--text-primary);
+}
+
+.header-left .hamburger-menu {
+    position: static;
+    margin: 0;
 }
 
 .header-actions {
@@ -830,19 +935,19 @@ select.form-control {
     padding: 8px 16px;
     font-size: 14px;
     font-weight: 500;
-    min-width: 60px;
+    min-width: 80px;
     text-align: center;
     vertical-align: middle;
 }
 
 .btn-sm.btn-primary {
-    margin-right: 4px;
-    margin-left: auto;
+    margin-right: 2px;
+    margin-left: 2px;
 }
 
 .btn-sm.btn-danger {
-    margin-left: 4px;
-    margin-right: auto;
+    margin-right: 2px;
+    margin-left: 2px;
 }
 
 /* Responsive */
@@ -871,6 +976,45 @@ select.form-control {
     .pos-cart {
         position: static;
     }
+}
+
+/* Hamburger Menu */
+.hamburger-menu {
+    display: block;
+    background: var(--primary);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+    transition: all 0.3s ease;
+}
+
+.hamburger-menu:hover {
+    background: var(--primary-dark);
+    transform: scale(1.05);
+}
+
+.hamburger-menu span {
+    display: block;
+    width: 25px;
+    height: 3px;
+    background: var(--white);
+    border-radius: 3px;
+    margin: 5px 0;
+    transition: all 0.3s ease;
+}
+
+.hamburger-menu.active span:nth-child(1) {
+    transform: rotate(45deg) translate(8px, 8px);
+}
+
+.hamburger-menu.active span:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger-menu.active span:nth-child(3) {
+    transform: rotate(-45deg) translate(8px, -8px);
 }
 
 @media (max-width: 768px) {

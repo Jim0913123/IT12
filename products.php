@@ -5,6 +5,14 @@ require_once 'includes/auth.php';
 requireLogin();
 $user = getCurrentUser();
 
+// Pagination settings
+$items_per_page = 10;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $items_per_page;
+
+// Category filter
+$selected_category = isset($_GET['category']) ? (int)$_GET['category'] : '';
+
 // Handle product add/edit/delete
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_product'])) {
@@ -45,28 +53,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get pagination information
-$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-$limit = 5;
-$offset = ($page - 1) * $limit;
+// Build query with category filter
+$where_clause = "WHERE p.status = 'active'";
+$params = [];
+$types = "";
 
-// Get total product count
-$total_products = $conn->query("
-    SELECT COUNT(*) as count 
-    FROM products 
-    WHERE status = 'active'
-")->fetch_assoc()['count'];
-$total_pages = ceil($total_products / $limit);
+if ($selected_category) {
+    $where_clause .= " AND p.category_id = ?";
+    $params[] = $selected_category;
+    $types .= "i";
+}
+
+// Get total products count
+$count_query = "SELECT COUNT(*) as total FROM products p LEFT JOIN categories c ON p.category_id = c.category_id $where_clause";
+$count_stmt = $conn->prepare($count_query);
+if ($params) {
+    $count_stmt->bind_param($types, ...$params);
+}
+$count_stmt->execute();
+$total_result = $count_stmt->get_result();
+$total_products = $total_result->fetch_assoc()['total'];
+$total_pages = ceil($total_products / $items_per_page);
 
 // Get products with pagination
-$products = $conn->query("
+$products_query = "
     SELECT p.*, c.category_name 
     FROM products p 
     LEFT JOIN categories c ON p.category_id = c.category_id 
-    WHERE p.status = 'active'
+    $where_clause
     ORDER BY p.created_at DESC
-    LIMIT $limit OFFSET $offset
-");
+    LIMIT ? OFFSET ?
+";
+$products_stmt = $conn->prepare($products_query);
+$all_params = array_merge($params, [$items_per_page, $offset]);
+$all_types = $types . "ii";
+$products_stmt->bind_param($all_types, ...$all_params);
+$products_stmt->execute();
+$products = $products_stmt->get_result();
 
 // Get categories
 $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC");
@@ -141,9 +164,16 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         
         <div class="main-content">
             <div class="header">
-                <h1>Products</h1>
+                <div class="header-left">
+                    <!-- Hamburger Menu Button -->
+                    <button class="hamburger-menu" onclick="toggleSidebar()">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h1>Products</h1>
+                </div>
                 <div class="header-actions">
-                    <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Product</button>
                     <div class="user-info">
                         <div class="user-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
                         <div class="user-details">
@@ -164,6 +194,20 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
             <div class="card">
                 <div class="card-header">
                     <h3>All Products</h3>
+                    <form method="GET" style="display: flex; gap: 12px; align-items: center;">
+                        <select name="category" class="form-control" style="width: 200px;" onchange="this.form.submit()">
+                            <option value="">All Categories</option>
+                            <?php 
+                            $categories->data_seek(0);
+                            while ($cat = $categories->fetch_assoc()): 
+                            ?>
+                                <option value="<?php echo $cat['category_id']; ?>" <?php echo $selected_category == $cat['category_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($cat['category_name']); ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Product</button>
+                    </form>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -207,54 +251,31 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                             </tbody>
                         </table>
                     </div>
-                    
-                    <!-- Pagination Controls -->
-                    <?php if ($total_pages > 1): ?>
-                        <div class="pagination-container">
-                            <div class="pagination-controls">
-                                <?php if ($page > 1): ?>
-                                    <a href="?page=1">« First</a>
-                                    <a href="?page=<?php echo $page - 1; ?>">‹ Previous</a>
-                                <?php endif; ?>
-                                
-                                <?php
-                                $start_page = max(1, $page - 2);
-                                $end_page = min($total_pages, $page + 2);
-                                
-                                if ($start_page > 1) {
-                                    echo '<a href="?page=1">1</a>';
-                                    if ($start_page > 2) {
-                                        echo '<span class="dots">...</span>';
-                                    }
-                                }
-                                
-                                for ($i = $start_page; $i <= $end_page; $i++):
-                                ?>
-                                    <a href="?page=<?php echo $i; ?>" 
-                                       class="<?php echo $i == $page ? 'active' : ''; ?>">
-                                        <?php echo $i; ?>
-                                    </a>
-                                <?php
-                                endfor;
-                                
-                                if ($end_page < $total_pages) {
-                                    if ($end_page < $total_pages - 1) {
-                                        echo '<span class="dots">...</span>';
-                                    }
-                                    echo '<a href="?page=' . $total_pages . '">' . $total_pages . '</a>';
-                                }
-                                ?>
-                                
-                                <?php if ($page < $total_pages): ?>
-                                    <a href="?page=<?php echo $page + 1; ?>">Next ›</a>
-                                    <a href="?page=<?php echo $total_pages; ?>">Last »</a>
-                                <?php endif; ?>
-                            </div>
-                            <div class="pagination-info">
-                                Page <?php echo $page; ?> of <?php echo $total_pages; ?>
-                            </div>
-                        </div>
+                </div>
+                
+                <!-- Pagination -->
+                <?php if ($total_pages > 1): ?>
+                <div class="pagination" style="display: flex; justify-content: center; gap: 8px; margin-top: 24px;">
+                    <?php if ($page > 1): ?>
+                        <a href="?page=<?php echo $page - 1; ?>&category=<?php echo $selected_category; ?>" class="btn btn-secondary btn-sm">« Previous</a>
                     <?php endif; ?>
+                    
+                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                        <?php if ($i == $page): ?>
+                            <span class="btn btn-primary btn-sm"><?php echo $i; ?></span>
+                        <?php else: ?>
+                            <a href="?page=<?php echo $i; ?>&category=<?php echo $selected_category; ?>" class="btn btn-secondary btn-sm"><?php echo $i; ?></a>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                    
+                    <?php if ($page < $total_pages): ?>
+                        <a href="?page=<?php echo $page + 1; ?>&category=<?php echo $selected_category; ?>" class="btn btn-secondary btn-sm">Next »</a>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+                
+                <div style="text-align: center; margin-top: 16px; color: var(--text-secondary);">
+                    Showing <?php echo ($offset + 1) . ' - ' . min($offset + $items_per_page, $total_products); ?> of <?php echo $total_products; ?> products
                 </div>
             </div>
         </div>
@@ -381,5 +402,6 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
             }
         });
     </script>
+    <script src="js/hamburger.js"></script>
 </body>
 </html>

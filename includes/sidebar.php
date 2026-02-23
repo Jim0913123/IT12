@@ -2,7 +2,7 @@
     <div class="sidebar-brand">
         <h2>
             <span class="icon">🛒</span>
-            POS System
+            POPRIE
         </h2>
     </div>
     
@@ -20,10 +20,31 @@
             </a>
         </li>
         <li>
-            <a href="inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+            <a href="inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>" onclick="toggleInventoryDropdown(event)">
                 <span class="icon">📦</span>
                 Inventory
+                <span class="dropdown-arrow" id="inventory-arrow">▼</span>
             </a>
+            <ul class="submenu" id="inventory-submenu">
+                <li>
+                    <a href="inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+                        <span class="icon">📊</span>
+                        Product Inventory
+                    </a>
+                </li>
+                <li>
+                    <a href="inventory.php#cup-inventory" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+                        <span class="icon">🥤</span>
+                        Cup Inventory
+                    </a>
+                </li>
+                <li>
+                    <a href="inventory.php#stock-movements" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+                        <span class="icon">📈</span>
+                        Stock Movements
+                    </a>
+                </li>
+            </ul>
         </li>
         <li>
             <a href="products.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'products.php' ? 'active' : ''; ?>">
@@ -40,7 +61,7 @@
         <?php if (isAdmin()): ?>
         <li>
             <a href="categories.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'categories.php' ? 'active' : ''; ?>">
-                <span class="icon">📑</span>
+                <span class="icon">�</span>
                 Categories
             </a>
         </li>
@@ -58,4 +79,5 @@
         </li>
         <?php endif; ?>
     </ul>
+    <script src="js/inventory-dropdown.js"></script>
 </aside>
