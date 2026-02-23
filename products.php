@@ -45,13 +45,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get products
+// Get pagination information
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = 5;
+$offset = ($page - 1) * $limit;
+
+// Get total product count
+$total_products = $conn->query("
+    SELECT COUNT(*) as count 
+    FROM products 
+    WHERE status = 'active'
+")->fetch_assoc()['count'];
+$total_pages = ceil($total_products / $limit);
+
+// Get products with pagination
 $products = $conn->query("
     SELECT p.*, c.category_name 
     FROM products p 
     LEFT JOIN categories c ON p.category_id = c.category_id 
     WHERE p.status = 'active'
     ORDER BY p.created_at DESC
+    LIMIT $limit OFFSET $offset
 ");
 
 // Get categories
@@ -64,6 +78,62 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products - POS & Inventory System</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .pagination-container {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            margin: 0 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .pagination-controls a,
+        .pagination-controls span {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+        
+        .pagination-controls a {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        
+        .pagination-controls a:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls a.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls span.dots {
+            border: none;
+            color: var(--text-secondary);
+        }
+    </style>
 </head>
 <body>
     <div class="main-wrapper">
@@ -111,24 +181,80 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php while ($product = $products->fetch_assoc()): ?>
+                                <?php if ($products->num_rows > 0): ?>
+                                    <?php while ($product = $products->fetch_assoc()): ?>
+                                        <tr>
+                                            <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($product['product_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($product['category_name']); ?></td>
+                                            <td>₱<?php echo number_format($product['cost_price'], 2); ?></td>
+                                            <td>₱<?php echo number_format($product['selling_price'], 2); ?></td>
+                                            <td><strong><?php echo $product['stock_quantity']; ?></strong></td>
+                                            <td><?php echo $product['reorder_level']; ?></td>
+                                            <td>
+                                                <button class="btn btn-warning btn-sm" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($product)); ?>)">Edit</button>
+                                                <button class="btn btn-danger btn-sm" onclick="deleteProduct(<?php echo $product['product_id']; ?>)">Delete</button>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
                                     <tr>
-                                        <td><strong><?php echo htmlspecialchars($product['product_code']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($product['product_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($product['category_name']); ?></td>
-                                        <td>₱<?php echo number_format($product['cost_price'], 2); ?></td>
-                                        <td>₱<?php echo number_format($product['selling_price'], 2); ?></td>
-                                        <td><strong><?php echo $product['stock_quantity']; ?></strong></td>
-                                        <td><?php echo $product['reorder_level']; ?></td>
-                                        <td>
-                                            <button class="btn btn-warning btn-sm" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($product)); ?>)">Edit</button>
-                                            <button class="btn btn-danger btn-sm" onclick="deleteProduct(<?php echo $product['product_id']; ?>)">Delete</button>
+                                        <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-secondary);">
+                                            No products found.
                                         </td>
                                     </tr>
-                                <?php endwhile; ?>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Pagination Controls -->
+                    <?php if ($total_pages > 1): ?>
+                        <div class="pagination-container">
+                            <div class="pagination-controls">
+                                <?php if ($page > 1): ?>
+                                    <a href="?page=1">« First</a>
+                                    <a href="?page=<?php echo $page - 1; ?>">‹ Previous</a>
+                                <?php endif; ?>
+                                
+                                <?php
+                                $start_page = max(1, $page - 2);
+                                $end_page = min($total_pages, $page + 2);
+                                
+                                if ($start_page > 1) {
+                                    echo '<a href="?page=1">1</a>';
+                                    if ($start_page > 2) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                }
+                                
+                                for ($i = $start_page; $i <= $end_page; $i++):
+                                ?>
+                                    <a href="?page=<?php echo $i; ?>" 
+                                       class="<?php echo $i == $page ? 'active' : ''; ?>">
+                                        <?php echo $i; ?>
+                                    </a>
+                                <?php
+                                endfor;
+                                
+                                if ($end_page < $total_pages) {
+                                    if ($end_page < $total_pages - 1) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                    echo '<a href="?page=' . $total_pages . '">' . $total_pages . '</a>';
+                                }
+                                ?>
+                                
+                                <?php if ($page < $total_pages): ?>
+                                    <a href="?page=<?php echo $page + 1; ?>">Next ›</a>
+                                    <a href="?page=<?php echo $total_pages; ?>">Last »</a>
+                                <?php endif; ?>
+                            </div>
+                            <div class="pagination-info">
+                                Page <?php echo $page; ?> of <?php echo $total_pages; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

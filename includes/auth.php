@@ -28,6 +28,17 @@ function requireAdmin() {
     }
 }
 
+// Restrict access to categories (admin only)
+function requireCategoriesAccess() {
+    requireLogin();
+    if (!isAdmin()) {
+        // Log the attempt
+        error_log("Unauthorized access attempt to categories by user: " . $_SESSION['username']);
+        header('Location: index.php');
+        exit();
+    }
+}
+
 // Login user
 function loginUser($conn, $username, $password) {
     $stmt = $conn->prepare("SELECT user_id, username, password, full_name, role FROM users WHERE username = ?");

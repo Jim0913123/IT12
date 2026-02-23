@@ -15,11 +15,30 @@ if (!isAdmin()) {
 $start_date = $_GET['start_date'] ?? date('Y-m-d');
 $end_date = $_GET['end_date'] ?? date('Y-m-d');
 
-// Get daily sales data
+// Pagination setup
+$daily_page = isset($_GET['daily_page']) ? max(1, intval($_GET['daily_page'])) : 1;
+$products_page = isset($_GET['products_page']) ? max(1, intval($_GET['products_page'])) : 1;
+$payment_page = isset($_GET['payment_page']) ? max(1, intval($_GET['payment_page'])) : 1;
+$limit = 5;
+
+// Get daily sales data with pagination
 $daily_sales = [];
 $total_sales = 0;
 $total_transactions = 0;
 $total_items = 0;
+
+// Get total daily sales count
+$count_query = "
+    SELECT COUNT(DISTINCT DATE(sale_date)) as count 
+    FROM sales 
+    WHERE DATE(sale_date) BETWEEN ? AND ?
+";
+$stmt = $conn->prepare($count_query);
+$stmt->bind_param("ss", $start_date, $end_date);
+$stmt->execute();
+$total_daily_count = $stmt->get_result()->fetch_assoc()['count'];
+$total_daily_pages = ceil($total_daily_count / $limit);
+$daily_offset = ($daily_page - 1) * $limit;
 
 $sales_query = "
     SELECT 
@@ -33,6 +52,7 @@ $sales_query = "
     WHERE DATE(sale_date) BETWEEN ? AND ?
     GROUP BY DATE(sale_date)
     ORDER BY sale_date DESC
+    LIMIT $limit OFFSET $daily_offset
 ";
 
 $stmt = $conn->prepare($sales_query);
@@ -46,7 +66,36 @@ while ($row = $result->fetch_assoc()) {
     $total_transactions += $row['transaction_count'];
 }
 
-// Get top selling products
+// Get all sales data for summary (without pagination)
+$summary_query = "
+    SELECT 
+        SUM(total_amount) as total_sales,
+        COUNT(*) as transaction_count,
+        SUM(1) as item_count
+    FROM sales 
+    WHERE DATE(sale_date) BETWEEN ? AND ?
+";
+$stmt = $conn->prepare($summary_query);
+$stmt->bind_param("ss", $start_date, $end_date);
+$stmt->execute();
+$summary = $stmt->get_result()->fetch_assoc();
+$total_sales = $summary['total_sales'] ?? 0;
+$total_transactions = $summary['transaction_count'] ?? 0;
+
+// Get top selling products count
+$product_count_query = "
+    SELECT COUNT(DISTINCT si.product_id) as count
+    FROM sale_items si
+    JOIN sales s ON si.sale_id = s.sale_id
+    WHERE DATE(s.sale_date) BETWEEN ? AND ?
+";
+$stmt = $conn->prepare($product_count_query);
+$stmt->bind_param("ss", $start_date, $end_date);
+$stmt->execute();
+$total_products_count = $stmt->get_result()->fetch_assoc()['count'];
+$total_products_pages = ceil($total_products_count / $limit);
+$products_offset = ($products_page - 1) * $limit;
+
 $top_products = [];
 $products_query = "
     SELECT 
@@ -61,7 +110,7 @@ $products_query = "
     WHERE DATE(s.sale_date) BETWEEN ? AND ?
     GROUP BY si.product_id, p.product_name, c.category_name
     ORDER BY total_quantity DESC
-    LIMIT 10
+    LIMIT $limit OFFSET $products_offset
 ";
 
 $stmt = $conn->prepare($products_query);
@@ -74,6 +123,19 @@ while ($row = $result->fetch_assoc()) {
     $total_items += $row['total_quantity'];
 }
 
+// Get payment method count
+$payment_count_query = "
+    SELECT COUNT(DISTINCT payment_method) as count
+    FROM sales 
+    WHERE DATE(sale_date) BETWEEN ? AND ?
+";
+$stmt = $conn->prepare($payment_count_query);
+$stmt->bind_param("ss", $start_date, $end_date);
+$stmt->execute();
+$total_payment_count = $stmt->get_result()->fetch_assoc()['count'];
+$total_payment_pages = ceil($total_payment_count / $limit);
+$payment_offset = ($payment_page - 1) * $limit;
+
 // Get payment method breakdown
 $payment_methods = [];
 $payment_query = "
@@ -85,6 +147,7 @@ $payment_query = "
     WHERE DATE(sale_date) BETWEEN ? AND ?
     GROUP BY payment_method
     ORDER BY total DESC
+    LIMIT $limit OFFSET $payment_offset
 ";
 
 $stmt = $conn->prepare($payment_query);
@@ -103,6 +166,62 @@ while ($row = $result->fetch_assoc()) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Reports - POPRIE</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .pagination-container {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            margin: 0 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .pagination-controls a,
+        .pagination-controls span {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+        
+        .pagination-controls a {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        
+        .pagination-controls a:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls a.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls span.dots {
+            border: none;
+            color: var(--text-secondary);
+        }
+    </style>
 </head>
 <body>
     <div class="main-wrapper">
@@ -235,6 +354,54 @@ while ($row = $result->fetch_assoc()) {
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Pagination Controls for Daily Sales -->
+                    <?php if ($total_daily_pages > 1): ?>
+                        <div class="pagination-container">
+                            <div class="pagination-controls">
+                                <?php if ($daily_page > 1): ?>
+                                    <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&daily_page=1<?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">« First</a>
+                                    <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&daily_page=<?php echo $daily_page - 1; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">‹ Previous</a>
+                                <?php endif; ?>
+                                
+                                <?php
+                                $start_page = max(1, $daily_page - 2);
+                                $end_page = min($total_daily_pages, $daily_page + 2);
+                                
+                                if ($start_page > 1) {
+                                    echo '<a href="?start_date=' . htmlspecialchars($start_date) . '&end_date=' . htmlspecialchars($end_date) . '&daily_page=1' . (isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : '') . (isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : '') . '">1</a>';
+                                    if ($start_page > 2) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                }
+                                
+                                for ($i = $start_page; $i <= $end_page; $i++):
+                                ?>
+                                    <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&daily_page=<?php echo $i; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>" 
+                                       class="<?php echo $i == $daily_page ? 'active' : ''; ?>">
+                                        <?php echo $i; ?>
+                                    </a>
+                                <?php
+                                endfor;
+                                
+                                if ($end_page < $total_daily_pages) {
+                                    if ($end_page < $total_daily_pages - 1) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                    echo '<a href="?start_date=' . htmlspecialchars($start_date) . '&end_date=' . htmlspecialchars($end_date) . '&daily_page=' . $total_daily_pages . (isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : '') . (isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : '') . '">' . $total_daily_pages . '</a>';
+                                }
+                                ?>
+                                
+                                <?php if ($daily_page < $total_daily_pages): ?>
+                                    <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&daily_page=<?php echo $daily_page + 1; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">Next ›</a>
+                                    <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&daily_page=<?php echo $total_daily_pages; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">Last »</a>
+                                <?php endif; ?>
+                            </div>
+                            <div class="pagination-info">
+                                Page <?php echo $daily_page; ?> of <?php echo $total_daily_pages; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
             
@@ -274,6 +441,54 @@ while ($row = $result->fetch_assoc()) {
                                 </tbody>
                             </table>
                         </div>
+                        
+                        <!-- Pagination Controls for Products -->
+                        <?php if ($total_products_pages > 1): ?>
+                            <div class="pagination-container">
+                                <div class="pagination-controls">
+                                    <?php if ($products_page > 1): ?>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&products_page=1<?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">« First</a>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&products_page=<?php echo $products_page - 1; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">‹ Previous</a>
+                                    <?php endif; ?>
+                                    
+                                    <?php
+                                    $start_page = max(1, $products_page - 2);
+                                    $end_page = min($total_products_pages, $products_page + 2);
+                                    
+                                    if ($start_page > 1) {
+                                        echo '<a href="?start_date=' . htmlspecialchars($start_date) . '&end_date=' . htmlspecialchars($end_date) . '&products_page=1' . (isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : '') . (isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : '') . '">1</a>';
+                                        if ($start_page > 2) {
+                                            echo '<span class="dots">...</span>';
+                                        }
+                                    }
+                                    
+                                    for ($i = $start_page; $i <= $end_page; $i++):
+                                    ?>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&products_page=<?php echo $i; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>" 
+                                           class="<?php echo $i == $products_page ? 'active' : ''; ?>">
+                                            <?php echo $i; ?>
+                                        </a>
+                                    <?php
+                                    endfor;
+                                    
+                                    if ($end_page < $total_products_pages) {
+                                        if ($end_page < $total_products_pages - 1) {
+                                            echo '<span class="dots">...</span>';
+                                        }
+                                        echo '<a href="?start_date=' . htmlspecialchars($start_date) . '&end_date=' . htmlspecialchars($end_date) . '&products_page=' . $total_products_pages . (isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : '') . (isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : '') . '">' . $total_products_pages . '</a>';
+                                    }
+                                    ?>
+                                    
+                                    <?php if ($products_page < $total_products_pages): ?>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&products_page=<?php echo $products_page + 1; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">Next ›</a>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&products_page=<?php echo $total_products_pages; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['payment_page']) ? '&payment_page='.$_GET['payment_page'] : ''; ?>">Last »</a>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="pagination-info">
+                                    Page <?php echo $products_page; ?> of <?php echo $total_products_pages; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 
@@ -311,6 +526,54 @@ while ($row = $result->fetch_assoc()) {
                                 </tbody>
                             </table>
                         </div>
+                        
+                        <!-- Pagination Controls for Payment Methods -->
+                        <?php if ($total_payment_pages > 1): ?>
+                            <div class="pagination-container">
+                                <div class="pagination-controls">
+                                    <?php if ($payment_page > 1): ?>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&payment_page=1<?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?>">« First</a>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&payment_page=<?php echo $payment_page - 1; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?>">‹ Previous</a>
+                                    <?php endif; ?>
+                                    
+                                    <?php
+                                    $start_page = max(1, $payment_page - 2);
+                                    $end_page = min($total_payment_pages, $payment_page + 2);
+                                    
+                                    if ($start_page > 1) {
+                                        echo '<a href="?start_date=' . htmlspecialchars($start_date) . '&end_date=' . htmlspecialchars($end_date) . '&payment_page=1' . (isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : '') . (isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : '') . '">1</a>';
+                                        if ($start_page > 2) {
+                                            echo '<span class="dots">...</span>';
+                                        }
+                                    }
+                                    
+                                    for ($i = $start_page; $i <= $end_page; $i++):
+                                    ?>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&payment_page=<?php echo $i; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?>" 
+                                           class="<?php echo $i == $payment_page ? 'active' : ''; ?>">
+                                            <?php echo $i; ?>
+                                        </a>
+                                    <?php
+                                    endfor;
+                                    
+                                    if ($end_page < $total_payment_pages) {
+                                        if ($end_page < $total_payment_pages - 1) {
+                                            echo '<span class="dots">...</span>';
+                                        }
+                                        echo '<a href="?start_date=' . htmlspecialchars($start_date) . '&end_date=' . htmlspecialchars($end_date) . '&payment_page=' . $total_payment_pages . (isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : '') . (isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : '') . '">' . $total_payment_pages . '</a>';
+                                    }
+                                    ?>
+                                    
+                                    <?php if ($payment_page < $total_payment_pages): ?>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&payment_page=<?php echo $payment_page + 1; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?>">Next ›</a>
+                                        <a href="?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&payment_page=<?php echo $total_payment_pages; ?><?php echo isset($_GET['daily_page']) ? '&daily_page='.$_GET['daily_page'] : ''; ?><?php echo isset($_GET['products_page']) ? '&products_page='.$_GET['products_page'] : ''; ?>">Last »</a>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="pagination-info">
+                                    Page <?php echo $payment_page; ?> of <?php echo $total_payment_pages; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
