@@ -46,8 +46,9 @@ body {
     min-height: 100vh;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     padding: 20px;
+    padding-right: 60px;
 }
 
 .login-box {
@@ -889,4 +890,23 @@ select.form-control {
     .stats-grid {
         grid-template-columns: 1fr;
     }
+    
+}
+
+/* Button alignment in tables */
+.btn-sm {
+    white-space: nowrap;
+    padding: 6px 12px;
+    font-size: 13px;
+    margin: 0 !important;
+}
+
+.btn-sm.btn-primary {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+}
+
+.btn-sm.btn-danger {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
 }

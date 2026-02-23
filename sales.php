@@ -6,17 +6,27 @@ requireLogin();
 $user = getCurrentUser();
 
 // Get sales with pagination
-$page = $_GET['page'] ?? 1;
-$limit = 20;
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = 5;
 $offset = ($page - 1) * $limit;
 
-$total_sales = $conn->query("SELECT COUNT(*) as count FROM sales")->fetch_assoc()['count'];
+// Build filter query
+$filter_query = "";
+$filter_params = "";
+if (isset($_GET['date']) && !empty($_GET['date'])) {
+    $date = $conn->real_escape_string($_GET['date']);
+    $filter_query = "WHERE DATE(s.sale_date) = '$date'";
+    $filter_params = "&date=" . urlencode($_GET['date']);
+}
+
+$total_sales = $conn->query("SELECT COUNT(*) as count FROM sales s $filter_query")->fetch_assoc()['count'];
 $total_pages = ceil($total_sales / $limit);
 
 $sales = $conn->query("
     SELECT s.*, u.full_name 
     FROM sales s 
     LEFT JOIN users u ON s.user_id = u.user_id 
+    $filter_query
     ORDER BY s.sale_date DESC 
     LIMIT $limit OFFSET $offset
 ");
@@ -28,6 +38,62 @@ $sales = $conn->query("
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales History - POS & Inventory System</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .pagination-container {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            margin: 0 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .pagination-controls a,
+        .pagination-controls span {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+        
+        .pagination-controls a {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        
+        .pagination-controls a:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls a.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls span.dots {
+            border: none;
+            color: var(--text-secondary);
+        }
+    </style>
 </head>
 <body>
     <div class="main-wrapper">
@@ -52,8 +118,11 @@ $sales = $conn->query("
                 <div class="card-header">
                     <h3>All Sales Transactions</h3>
                     <div style="display: flex; gap: 8px;">
-                        <input type="date" class="form-control" id="dateFilter" style="width: auto;">
+                        <input type="date" class="form-control" id="dateFilter" style="width: auto;" value="<?php echo isset($_GET['date']) ? htmlspecialchars($_GET['date']) : ''; ?>">
                         <button class="btn btn-primary btn-sm" onclick="filterByDate()">Filter</button>
+                        <?php if (isset($_GET['date'])): ?>
+                            <a href="sales.php" class="btn btn-secondary btn-sm">Clear</a>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body">
@@ -75,39 +144,84 @@ $sales = $conn->query("
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php while ($sale = $sales->fetch_assoc()): ?>
-                                    <?php
-                                    $items_count = $conn->query("SELECT COUNT(*) as count FROM sale_items WHERE sale_id = {$sale['sale_id']}")->fetch_assoc()['count'];
-                                    ?>
+                                <?php if ($sales->num_rows > 0): ?>
+                                    <?php while ($sale = $sales->fetch_assoc()): ?>
+                                        <?php
+                                        $items_count = $conn->query("SELECT COUNT(*) as count FROM sale_items WHERE sale_id = {$sale['sale_id']}")->fetch_assoc()['count'];
+                                        ?>
+                                        <tr>
+                                            <td><strong><?php echo htmlspecialchars($sale['invoice_number']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($sale['customer_name'] ?: 'Walk-in'); ?></td>
+                                            <td><?php echo htmlspecialchars($sale['full_name']); ?></td>
+                                            <td><?php echo $items_count; ?> item(s)</td>
+                                            <td>₱<?php echo number_format($sale['subtotal'], 2); ?></td>
+                                            <td>₱<?php echo number_format($sale['tax'], 2); ?></td>
+                                            <td>₱<?php echo number_format($sale['discount'], 2); ?></td>
+                                            <td><strong>₱<?php echo number_format($sale['total_amount'], 2); ?></strong></td>
+                                            <td><span class="badge badge-primary"><?php echo ucfirst($sale['payment_method']); ?></span></td>
+                                            <td><?php echo date('M d, Y H:i', strtotime($sale['sale_date'])); ?></td>
+                                            <td>
+                                                <button class="btn btn-primary btn-sm" onclick="viewSaleDetails(<?php echo $sale['sale_id']; ?>)">View</button>
+                                                <a href="receipt.php?invoice=<?php echo $sale['invoice_number']; ?>" target="_blank" class="btn btn-success btn-sm">Receipt</a>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
                                     <tr>
-                                        <td><strong><?php echo htmlspecialchars($sale['invoice_number']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($sale['customer_name'] ?: 'Walk-in'); ?></td>
-                                        <td><?php echo htmlspecialchars($sale['full_name']); ?></td>
-                                        <td><?php echo $items_count; ?> item(s)</td>
-                                        <td>₱<?php echo number_format($sale['subtotal'], 2); ?></td>
-                                        <td>₱<?php echo number_format($sale['tax'], 2); ?></td>
-                                        <td>₱<?php echo number_format($sale['discount'], 2); ?></td>
-                                        <td><strong>₱<?php echo number_format($sale['total_amount'], 2); ?></strong></td>
-                                        <td><span class="badge badge-primary"><?php echo ucfirst($sale['payment_method']); ?></span></td>
-                                        <td><?php echo date('M d, Y H:i', strtotime($sale['sale_date'])); ?></td>
-                                        <td>
-                                            <button class="btn btn-primary btn-sm" onclick="viewSaleDetails(<?php echo $sale['sale_id']; ?>)">View</button>
-                                            <a href="receipt.php?invoice=<?php echo $sale['invoice_number']; ?>" target="_blank" class="btn btn-success btn-sm">Receipt</a>
+                                        <td colspan="11" style="text-align: center; padding: 24px; color: var(--text-secondary);">
+                                            No sales records found.
                                         </td>
                                     </tr>
-                                <?php endwhile; ?>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
                     
-                    <!-- Pagination -->
+                    <!-- Pagination Controls -->
                     <?php if ($total_pages > 1): ?>
-                        <div style="margin-top: 24px; display: flex; justify-content: center; gap: 8px;">
-                            <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                                <a href="?page=<?php echo $i; ?>" class="btn <?php echo $page == $i ? 'btn-primary' : 'btn-secondary'; ?> btn-sm">
-                                    <?php echo $i; ?>
-                                </a>
-                            <?php endfor; ?>
+                        <div class="pagination-container">
+                            <div class="pagination-controls">
+                                <?php if ($page > 1): ?>
+                                    <a href="?page=1<?php echo $filter_params; ?>">« First</a>
+                                    <a href="?page=<?php echo $page - 1; ?><?php echo $filter_params; ?>">‹ Previous</a>
+                                <?php endif; ?>
+                                
+                                <?php
+                                $start_page = max(1, $page - 2);
+                                $end_page = min($total_pages, $page + 2);
+                                
+                                if ($start_page > 1) {
+                                    echo '<a href="?page=1' . $filter_params . '">1</a>';
+                                    if ($start_page > 2) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                }
+                                
+                                for ($i = $start_page; $i <= $end_page; $i++):
+                                ?>
+                                    <a href="?page=<?php echo $i; ?><?php echo $filter_params; ?>" 
+                                       class="<?php echo $i == $page ? 'active' : ''; ?>">
+                                        <?php echo $i; ?>
+                                    </a>
+                                <?php
+                                endfor;
+                                
+                                if ($end_page < $total_pages) {
+                                    if ($end_page < $total_pages - 1) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                    echo '<a href="?page=' . $total_pages . $filter_params . '">' . $total_pages . '</a>';
+                                }
+                                ?>
+                                
+                                <?php if ($page < $total_pages): ?>
+                                    <a href="?page=<?php echo $page + 1; ?><?php echo $filter_params; ?>">Next ›</a>
+                                    <a href="?page=<?php echo $total_pages; ?><?php echo $filter_params; ?>">Last »</a>
+                                <?php endif; ?>
+                            </div>
+                            <div class="pagination-info">
+                                Page <?php echo $page; ?> of <?php echo $total_pages; ?>
+                            </div>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -212,7 +326,7 @@ $sales = $conn->query("
         function filterByDate() {
             const date = document.getElementById('dateFilter').value;
             if (date) {
-                window.location.href = '?date=' + date;
+                window.location.href = '?date=' + date + '&page=1';
             }
         }
         
@@ -223,4 +337,5 @@ $sales = $conn->query("
         });
     </script>
 </body>
+
 </html>

@@ -78,8 +78,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get all users
-$users = $conn->query("SELECT user_id, username, full_name, role, created_at FROM users ORDER BY created_at DESC");
+// Get pagination information
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = 5;
+$offset = ($page - 1) * $limit;
+
+// Get total user count
+$total_users = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
+$total_pages = ceil($total_users / $limit);
+
+// Get users with pagination
+$users = $conn->query("SELECT user_id, username, full_name, role, created_at FROM users ORDER BY created_at DESC LIMIT $limit OFFSET $offset");
 ?>
 
 <!DOCTYPE html>
@@ -89,6 +98,62 @@ $users = $conn->query("SELECT user_id, username, full_name, role, created_at FRO
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management - POPRIE</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .pagination-container {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            margin: 0 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .pagination-controls a,
+        .pagination-controls span {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+        
+        .pagination-controls a {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        
+        .pagination-controls a:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls a.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls span.dots {
+            border: none;
+            color: var(--text-secondary);
+        }
+    </style>
 </head>
 <body>
     <div class="main-wrapper">
@@ -197,6 +262,54 @@ $users = $conn->query("SELECT user_id, username, full_name, role, created_at FRO
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Pagination Controls -->
+                    <?php if ($total_pages > 1): ?>
+                        <div class="pagination-container">
+                            <div class="pagination-controls">
+                                <?php if ($page > 1): ?>
+                                    <a href="?page=1">« First</a>
+                                    <a href="?page=<?php echo $page - 1; ?>">‹ Previous</a>
+                                <?php endif; ?>
+                                
+                                <?php
+                                $start_page = max(1, $page - 2);
+                                $end_page = min($total_pages, $page + 2);
+                                
+                                if ($start_page > 1) {
+                                    echo '<a href="?page=1">1</a>';
+                                    if ($start_page > 2) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                }
+                                
+                                for ($i = $start_page; $i <= $end_page; $i++):
+                                ?>
+                                    <a href="?page=<?php echo $i; ?>" 
+                                       class="<?php echo $i == $page ? 'active' : ''; ?>">
+                                        <?php echo $i; ?>
+                                    </a>
+                                <?php
+                                endfor;
+                                
+                                if ($end_page < $total_pages) {
+                                    if ($end_page < $total_pages - 1) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                    echo '<a href="?page=' . $total_pages . '">' . $total_pages . '</a>';
+                                }
+                                ?>
+                                
+                                <?php if ($page < $total_pages): ?>
+                                    <a href="?page=<?php echo $page + 1; ?>">Next ›</a>
+                                    <a href="?page=<?php echo $total_pages; ?>">Last »</a>
+                                <?php endif; ?>
+                            </div>
+                            <div class="pagination-info">
+                                Page <?php echo $page; ?> of <?php echo $total_pages; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

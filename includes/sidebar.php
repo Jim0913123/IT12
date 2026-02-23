@@ -37,13 +37,13 @@
                 Sales History
             </a>
         </li>
+        <?php if (isAdmin()): ?>
         <li>
             <a href="categories.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'categories.php' ? 'active' : ''; ?>">
                 <span class="icon">📑</span>
                 Categories
             </a>
         </li>
-        <?php if (isAdmin()): ?>
         <li>
             <a href="reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">
                 <span class="icon">📈</span>

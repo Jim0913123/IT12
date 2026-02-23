@@ -3,7 +3,7 @@ require_once 'includes/config.php';
 require_once 'includes/auth.php';
 
 requireLogin();
-requireAdmin(); // Only admin can manage categories
+requireCategoriesAccess(); // Only admin can access categories
 $user = getCurrentUser();
 
 // Handle category operations
@@ -21,19 +21,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: categories.php?success=updated');
         exit();
     } elseif (isset($_POST['delete_category'])) {
-        $category_id = $_POST['category_id'];
-        $conn->query("DELETE FROM categories WHERE category_id=$category_id");
+        $category_id = intval($_POST['category_id']);
+        
+        // Check if category has associated products
+        $product_check = $conn->query("SELECT COUNT(*) as count FROM products WHERE category_id=$category_id AND status='active'")->fetch_assoc();
+        
+        if ($product_check['count'] > 0) {
+            // Cannot delete category with products
+            header('Location: categories.php?error=has_products');
+            exit();
+        }
+        
+        // Soft delete or hard delete - using soft delete approach
+        $stmt = $conn->prepare("UPDATE categories SET deleted_at = NOW() WHERE category_id = ?");
+        $stmt->bind_param("i", $category_id);
+        $stmt->execute();
+        
         header('Location: categories.php?success=deleted');
         exit();
     }
 }
 
+// Get pagination information
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$limit = 5;
+$offset = ($page - 1) * $limit;
+
+// Get total category count
+$total_categories = $conn->query("
+    SELECT COUNT(*) as count 
+    FROM categories 
+    WHERE deleted_at IS NULL
+")->fetch_assoc()['count'];
+$total_pages = ceil($total_categories / $limit);
+
+// Get categories with pagination
 $categories = $conn->query("
     SELECT c.*, COUNT(p.product_id) as product_count 
     FROM categories c 
     LEFT JOIN products p ON c.category_id = p.category_id AND p.status = 'active'
+    WHERE c.deleted_at IS NULL
     GROUP BY c.category_id 
     ORDER BY c.category_name ASC
+    LIMIT $limit OFFSET $offset
 ");
 ?>
 <!DOCTYPE html>
@@ -43,6 +73,62 @@ $categories = $conn->query("
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Categories - POS & Inventory System</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .pagination-container {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            margin: 0 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .pagination-controls a,
+        .pagination-controls span {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+        
+        .pagination-controls a {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        
+        .pagination-controls a:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls a.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination-controls span.dots {
+            border: none;
+            color: var(--text-secondary);
+        }
+    </style>
 </head>
 <body>
     <div class="main-wrapper">
@@ -67,6 +153,18 @@ $categories = $conn->query("
             <?php if (isset($_GET['success'])): ?>
                 <div class="alert alert-success" style="margin-bottom: 24px; background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7;">
                     Category <?php echo htmlspecialchars($_GET['success']); ?> successfully!
+                </div>
+            <?php endif; ?>
+            
+            <?php if (isset($_GET['error'])): ?>
+                <div class="alert alert-danger" style="margin-bottom: 24px; background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5;">
+                    <?php 
+                    if ($_GET['error'] === 'has_products') {
+                        echo "Cannot delete category because it has associated products.";
+                    } else {
+                        echo "An error occurred: " . htmlspecialchars($_GET['error']);
+                    }
+                    ?>
                 </div>
             <?php endif; ?>
             
@@ -95,15 +193,61 @@ $categories = $conn->query("
                                         <td><?php echo date('M d, Y', strtotime($category['created_at'])); ?></td>
                                         <td>
                                             <button class="btn btn-warning btn-sm" onclick='openEditModal(<?php echo json_encode($category); ?>)'>Edit</button>
-                                            <?php if ($category['product_count'] == 0): ?>
-                                                <button class="btn btn-danger btn-sm" onclick="deleteCategory(<?php echo $category['category_id']; ?>)">Delete</button>
-                                            <?php endif; ?>
+                                            <button class="btn btn-danger btn-sm" onclick="deleteCategory(<?php echo $category['category_id']; ?>, <?php echo $category['product_count']; ?>)">Delete</button>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Pagination Controls -->
+                    <?php if ($total_pages > 1): ?>
+                        <div class="pagination-container">
+                            <div class="pagination-controls">
+                                <?php if ($page > 1): ?>
+                                    <a href="?page=1">« First</a>
+                                    <a href="?page=<?php echo $page - 1; ?>">‹ Previous</a>
+                                <?php endif; ?>
+                                
+                                <?php
+                                $start_page = max(1, $page - 2);
+                                $end_page = min($total_pages, $page + 2);
+                                
+                                if ($start_page > 1) {
+                                    echo '<a href="?page=1">1</a>';
+                                    if ($start_page > 2) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                }
+                                
+                                for ($i = $start_page; $i <= $end_page; $i++):
+                                ?>
+                                    <a href="?page=<?php echo $i; ?>" 
+                                       class="<?php echo $i == $page ? 'active' : ''; ?>">
+                                        <?php echo $i; ?>
+                                    </a>
+                                <?php
+                                endfor;
+                                
+                                if ($end_page < $total_pages) {
+                                    if ($end_page < $total_pages - 1) {
+                                        echo '<span class="dots">...</span>';
+                                    }
+                                    echo '<a href="?page=' . $total_pages . '">' . $total_pages . '</a>';
+                                }
+                                ?>
+                                
+                                <?php if ($page < $total_pages): ?>
+                                    <a href="?page=<?php echo $page + 1; ?>">Next ›</a>
+                                    <a href="?page=<?php echo $total_pages; ?>">Last »</a>
+                                <?php endif; ?>
+                            </div>
+                            <div class="pagination-info">
+                                Page <?php echo $page; ?> of <?php echo $total_pages; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -159,7 +303,12 @@ $categories = $conn->query("
             document.getElementById('categoryModal').classList.remove('active');
         }
         
-        function deleteCategory(id) {
+        function deleteCategory(id, productCount) {
+            if (productCount > 0) {
+                alert('Cannot delete category because it has ' + productCount + ' associated product(s).');
+                return;
+            }
+            
             if (confirm('Are you sure you want to delete this category?')) {
                 const form = document.createElement('form');
                 form.method = 'POST';
