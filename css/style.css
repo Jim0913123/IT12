@@ -671,6 +671,13 @@ select.form-control {
     font-weight: 600;
 }
 
+/* wrapper to center quantity controls horizontally */
+.qty-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .cart-total {
     padding: 16px 0;
     border-top: 2px solid var(--border);

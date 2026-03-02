@@ -71,6 +71,18 @@ CREATE TABLE IF NOT EXISTS sale_items (
     FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE SET NULL
 );
 
+-- Voided Sales Audit Table (records automated cart cancellations)
+CREATE TABLE IF NOT EXISTS sale_voids (
+    void_id INT AUTO_INCREMENT PRIMARY KEY,
+    voided_at DATETIME NOT NULL,
+    voided_by INT,
+    requested_by INT,
+    void_reason TEXT NOT NULL,
+    cart_items TEXT,
+    FOREIGN KEY (voided_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    FOREIGN KEY (requested_by) REFERENCES users(user_id) ON DELETE SET NULL
+);
+
 -- Stock Movements Table
 CREATE TABLE IF NOT EXISTS stock_movements (
     movement_id INT AUTO_INCREMENT PRIMARY KEY,
