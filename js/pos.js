@@ -3,11 +3,15 @@ let cart = [];
 
 // Add product to cart
 function addToCart(element) {
+    console.log('Adding product:', element.dataset); // Debug log
+    
     const productId = element.dataset.id;
     const productCode = element.dataset.code;
     const productName = element.dataset.name;
     const productPrice = parseFloat(element.dataset.price);
     const productStock = parseInt(element.dataset.stock);
+    
+    console.log('Product details:', { productId, productCode, productName, productPrice, productStock }); // Debug log
     
     if (productStock <= 0) {
         alert('Product is out of stock!');
@@ -18,15 +22,18 @@ function addToCart(element) {
     const existingItem = cart.find(item => item.id === productId);
     
     if (existingItem) {
+        console.log('Product already in cart, updating quantity'); // Debug log
         if (existingItem.quantity < productStock) {
             existingItem.quantity++;
             existingItem.subtotal = existingItem.quantity * existingItem.price;
+            console.log('Updated existing item:', existingItem); // Debug log
         } else {
             alert('Cannot add more. Insufficient stock!');
             return;
         }
     } else {
-        cart.push({
+        console.log('Adding new product to cart'); // Debug log
+        const newItem = {
             id: productId,
             code: productCode,
             name: productName,
@@ -34,9 +41,12 @@ function addToCart(element) {
             quantity: 1,
             stock: productStock,
             subtotal: productPrice
-        });
+        };
+        console.log('New item created:', newItem); // Debug log
+        cart.push(newItem);
     }
     
+    console.log('Cart after adding:', cart); // Debug log
     updateCart();
 }
 
@@ -47,29 +57,22 @@ function updateCart() {
     if (cart.length === 0) {
         cartItemsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">Cart is empty</p>';
     } else {
-        cartItemsDiv.innerHTML = cart.map((item, index) => {
-            const isVoided = item.voided || false;
-            return `
-                <div class="cart-item ${isVoided ? 'voided-item' : ''}">
-                    <div class="cart-item-info">
-                        <div class="cart-item-name">
-                            ${item.name}
-                            ${isVoided ? '<span class="voided-badge">VOIDED</span>' : ''}
-                        </div>
-                        <div class="cart-item-price">₱${item.price.toFixed(2)}</div>
-                    </div>
-                    <div class="cart-item-actions">
-                        <div class="qty-wrapper">
-                            <button class="quantity-btn" onclick="decreaseQuantity(${index})" ${isVoided ? 'disabled' : ''}>-</button>
-                            <span style="font-weight:600; min-width: 30px; text-align:center;">${item.quantity}</span>
-                            <button class="quantity-btn" onclick="increaseQuantity(${index})" ${isVoided ? 'disabled' : ''}>+</button>
-                        </div>
-                        <strong style="min-width: 70px; text-align: right;">₱${item.subtotal.toFixed(2)}</strong>
-                
+        cartItemsDiv.innerHTML = cart.map((item, index) => `
+            <div class="cart-item">
+                <div class="cart-item-details">
+                    <h4>${item.name}</h4>
+                    <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
+                </div>
+                <div class="cart-item-actions">
+                    <strong style="color: var(--primary);">₱${item.subtotal.toFixed(2)}</strong>
+                    <div class="quantity-control">
+                        <button class="quantity-btn" onclick="decreaseQuantity(${index})">-</button>
+                        <span style="font-weight: 600; min-width: 30px; text-align: center;">${item.quantity}</span>
+                        <button class="quantity-btn" onclick="increaseQuantity(${index})">+</button>
                     </div>
                 </div>
-            `;
-        }).join('');
+            </div>
+        `).join('');
     }
     
     updateTotals();
@@ -136,14 +139,36 @@ function clearCart() {
 
 // Update totals
 function updateTotals() {
-    const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
+    console.log('=== UPDATE TOTALS CALLED ==='); // Debug log
+    console.log('Current cart:', cart); // Debug log
+    console.log('Cart length:', cart.length); // Debug log
+    
+    if (!cart || cart.length === 0) {
+        console.log('Cart is empty, setting totals to 0'); // Debug log
+        document.getElementById('subtotal').textContent = '₱0.00';
+        document.getElementById('tax').textContent = '₱0.00';
+        document.getElementById('discount').textContent = '₱0.00';
+        document.getElementById('grandTotal').textContent = '₱0.00';
+        return;
+    }
+    
+    let subtotal = 0;
+    for (let i = 0; i < cart.length; i++) {
+        console.log(`Item ${i}:`, cart[i]); // Debug log
+        console.log(`Item ${i} subtotal:`, cart[i].subtotal); // Debug log
+        subtotal += parseFloat(cart[i].subtotal) || 0;
+    }
+    
+    console.log('Calculated subtotal:', subtotal); // Debug log
+    
     const tax = subtotal * 0.12; // 12% tax
-    const discount = 0; // Will be calculated on checkout page
-    const total = subtotal + tax - discount;
+    const total = subtotal + tax;
+    
+    console.log('Final totals:', { subtotal, tax, total }); // Debug log
     
     document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
     document.getElementById('tax').textContent = '₱' + tax.toFixed(2);
-    document.getElementById('discount').textContent = '₱' + discount.toFixed(2);
+    document.getElementById('discount').textContent = '₱0.00';
     document.getElementById('grandTotal').textContent = '₱' + total.toFixed(2);
 }
 
@@ -294,11 +319,12 @@ function displayModalCart() {
 
 // Update modal totals
 function updateModalTotals() {
-    const activeItems = cart.filter(item => !item.voided);
-    const subtotal = activeItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
     const tax = subtotal * 0.12;
     const discount = parseFloat(document.getElementById('discountAmount').value || 0);
     const total = subtotal + tax - discount;
+    
+    console.log('Modal totals calculation:', { subtotal, tax, discount, total }); // Debug log
     
     document.getElementById('modalSubtotal').textContent = '₱' + subtotal.toFixed(2);
     document.getElementById('modalTax').textContent = '₱' + tax.toFixed(2);
@@ -328,6 +354,8 @@ document.getElementById('discountAmount')?.addEventListener('input', updateModal
 document.getElementById('checkoutForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     
+    console.log('Checkout form submitted'); // Debug log
+    
     // Filter out voided items
     const activeItems = cart.filter(item => !item.voided);
     
@@ -342,13 +370,22 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
     const total = subtotal + tax - discount;
     const paid = parseFloat(document.getElementById('amountPaid').value);
     
+    console.log('Calculations:', { subtotal, tax, discount, total, paid }); // Debug log
+    
     if (paid < total) {
         alert('Amount paid is less than total!');
         return;
     }
     
-    const saleData = {
+    // Create hidden form for direct submission
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'process-sale.php';
+    
+    // Add all data as hidden fields
+    const fields = {
         customer_name: document.getElementById('customerName').value,
+        customer_phone: '',
         payment_method: document.getElementById('paymentMethod').value,
         subtotal: subtotal,
         tax: tax,
@@ -356,7 +393,7 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
         total: total,
         paid: paid,
         change: paid - total,
-        items: activeItems
+        items: cart
     };
     
     try {

@@ -8,7 +8,7 @@ $is_admin = isAdmin();
     <div class="sidebar-brand">
         <h2>
             <span class="icon">🛒</span>
-            POS System
+            POPRIE
         </h2>
     </div>
     
@@ -32,10 +32,31 @@ $is_admin = isAdmin();
 
         <?php if (!$is_cashier): ?>
         <li>
-            <a href="inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+            <a href="inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>" onclick="toggleInventoryDropdown(event)">
                 <span class="icon">📦</span>
                 Inventory
+                <span class="dropdown-arrow" id="inventory-arrow">▼</span>
             </a>
+            <ul class="submenu" id="inventory-submenu">
+                <li>
+                    <a href="inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+                        <span class="icon">📊</span>
+                        Product Inventory
+                    </a>
+                </li>
+                <li>
+                    <a href="inventory.php#cup-inventory" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+                        <span class="icon">🥤</span>
+                        Cup Inventory
+                    </a>
+                </li>
+                <li>
+                    <a href="inventory.php#stock-movements" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+                        <span class="icon">📈</span>
+                        Stock Movements
+                    </a>
+                </li>
+            </ul>
         </li>
 
         <li>
@@ -51,38 +72,27 @@ $is_admin = isAdmin();
                 Sales History
             </a>
         </li>
-
-            <?php if ($is_admin): ?>
-            <li>
-                <a href="voids.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'voids.php' ? 'active' : ''; ?>">
-                    <span class="icon">❌</span>
-                    Voided Sales
-                </a>
-            </li>
-
-            <li>
-                <a href="categories.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'categories.php' ? 'active' : ''; ?>">
-                    <span class="icon">📑</span>
-                    Categories
-                </a>
-            </li>
-
-            <li>
-                <a href="reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">
-                    <span class="icon">📈</span>
-                    Reports
-                </a>
-            </li>
-
-            <li>
-                <a href="users.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>">
-                    <span class="icon">👥</span>
-                    Users
-                </a>
-            </li>
-            <?php endif; ?>
-
-        <?php endif; ?>  <!-- THIS WAS MISSING -->
-
+        <?php endif; ?>
+        <?php if ($is_admin): ?>
+        <li>
+            <a href="categories.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'categories.php' ? 'active' : ''; ?>">
+                <span class="icon">📑</span>
+                Categories
+            </a>
+        </li>
+        <li>
+            <a href="reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">
+                <span class="icon">📈</span>
+                Reports
+            </a>
+        </li>
+        <li>
+            <a href="users.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>">
+                <span class="icon">👥</span>
+                Users
+            </a>
+        </li>
+        <?php endif; ?>
     </ul>
+    <script src="js/inventory-dropdown.js"></script>
 </aside>
