@@ -249,7 +249,6 @@ button:hover {
         <div class="login-box">
 
             <div class="login-header">
-                <img src="pictures/poprie.jpg" alt="POPRIE Logo" class="login-logo-img">
                 <h1>Login</h1>
                 <p>Sign in to your account</p>
             </div>

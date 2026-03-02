@@ -35,10 +35,12 @@
 
 body {
     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #E8E4C9;
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
 }
 
 /* Login Page Styles */
@@ -909,4 +911,18 @@ select.form-control {
 .btn-sm.btn-danger {
     margin-left: 0 !important;
     margin-right: 0 !important;
+}
+
+/* Cashier Interface Styling */
+.sidebar-hidden {
+    display: none !important;
+}
+
+body.cashier-view .sidebar {
+    display: none !important;
+}
+
+body.cashier-view .main-content {
+    margin-left: 0;
+    width: 100%;
 }
