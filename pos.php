@@ -118,63 +118,65 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
             flex-direction: column;
             border-right: none;
             background: #FFFFFF;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 14px 40px rgba(0, 0, 0, 0.08), 0 6px 16px rgba(0, 0, 0, 0.05);
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: relative;
             transition: all 0.3s ease;
         }
 
         .pos-products:hover {
-            box-shadow: 0 20px 48px rgba(211, 47, 47, 0.1), 0 10px 24px rgba(0, 0, 0, 0.08);
-            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(211, 47, 47, 0.08);
+            transform: translateY(-1px);
         }
 
         .pos-cart {
             width: 30%;
             display: flex;
             flex-direction: column;
-            background: linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%);
-            box-shadow: 0 14px 40px rgba(0, 0, 0, 0.08), 0 6px 16px rgba(0, 0, 0, 0.05);
-            border-radius: 12px;
+            background: #FFFFFF;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-radius: 10px;
             position: relative;
             transition: all 0.3s ease;
             overflow-y: auto;
+            border: 1px solid #f5f5f5;
         }
 
         .pos-cart:hover {
-            box-shadow: 0 20px 48px rgba(211, 47, 47, 0.12), 0 10px 24px rgba(0, 0, 0, 0.08);
-            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(211, 47, 47, 0.08);
+            transform: translateY(-1px);
         }
 
         .pos-products > div:first-child {
-            padding: 24px;
-            border-bottom: 2px solid #d32f2f;
-            background: linear-gradient(135deg, #FFFFFF 0%, #F5F5F5 100%);
+            padding: 0;
+            border-bottom: none;
+            background: transparent;
             margin-bottom: 20px;
-            border-radius: 10px;
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+            border-radius: 0;
+            box-shadow: none;
         }
 
         .product-grid {
             flex: 1;
             overflow-y: auto;
-            padding: 10px 0;
+            padding: 12px 0;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 16px;
         }
 
         .product-card {
-            background: linear-gradient(135deg, #FFFFFF 0%, #F8F8F8 100%);
-            border: 1px solid #e8e8e8;
-            border-radius: 12px;
-            padding: 18px;
+            background: #FFFFFF;
+            border: 2px solid #f0f0f0;
+            border-radius: 10px;
+            padding: 16px 14px;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: relative;
             overflow: hidden;
+            text-align: center;
         }
 
         .product-card::before {
@@ -183,37 +185,43 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
             top: 0;
             left: 0;
             right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #d32f2f 0%, #ff6b6b 100%);
+            height: 4px;
+            background: #d32f2f;
             opacity: 0;
             transition: opacity 0.3s ease;
         }
 
         .product-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 8px 20px rgba(0, 0, 0, 0.08);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(211, 47, 47, 0.15);
             border-color: #d32f2f;
-            background: linear-gradient(135deg, #FFFFFF 0%, #FFF5F5 100%);
+            background: #FFFFFF;
+        }
+
+        .product-card:hover::before {
+            opacity: 1;
         }
 
         .product-card h4 {
-            font-size: 13px;
-            font-weight: 600;
-            color: #333;
-            margin: 0 0 8px 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #222;
+            margin: 0 0 10px 0;
             word-break: break-word;
+            line-height: 1.3;
         }
 
         .product-card .price {
-            font-size: 14px;
-            font-weight: 700;
+            font-size: 16px;
+            font-weight: 800;
             color: #d32f2f;
-            margin: 6px 0;
+            margin: 8px 0;
         }
 
         .product-card .stock {
-            font-size: 11px;
-            color: #999;
+            font-size: 12px;
+            color: #888;
+            font-weight: 500;
         }
 
         .pos-cart h3 {
@@ -232,27 +240,28 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         .cart-items {
             flex: 1;
             overflow-y: auto;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
             border-top: none;
-            padding: 20px 28px;
+            padding: 16px 24px;
         }
 
         .cart-item {
-            background: linear-gradient(135deg, #F8F8F8 0%, #FFFFFF 100%);
-            border: 1px solid #e8e8e8;
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 16px;
+            background: #FFFFFF;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
             transition: all 0.3s ease;
         }
 
         .cart-item:hover {
-            box-shadow: 0 6px 16px rgba(211, 47, 47, 0.1);
-            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(211, 47, 47, 0.12);
+            transform: translateX(3px);
+            border-color: #d32f2f;
         }
 
         .cart-item-info {
@@ -260,15 +269,16 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         }
 
         .cart-item-name {
-            font-weight: 600;
+            font-weight: 700;
             font-size: 13px;
-            color: #333;
+            color: #222;
             margin-bottom: 4px;
         }
 
         .cart-item-price {
-            font-size: 12px;
+            font-size: 13px;
             color: #d32f2f;
+            font-weight: 600;
         }
 
         .cart-item-actions {
@@ -287,35 +297,36 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         }
 
         .cart-total {
-            background: linear-gradient(135deg, #FFFFFF 0%, #FFF9F9 100%);
-            padding: 24px;
-            border-radius: 12px;
-            border-bottom: 2px solid #d32f2f;
-            margin: 0 28px 20px 28px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.05);
+            background: #FFFFFF;
+            padding: 20px 24px;
+            border-radius: 10px;
+            border-top: 3px solid #d32f2f;
+            margin: 0 24px 20px 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: relative;
         }
 
         .total-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 14px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #333;
         }
 
         .total-row:last-child {
-            font-weight: 700;
-            font-size: 16px;
+            font-weight: 800;
+            font-size: 15px;
             color: #d32f2f;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
+            border-top: 2px solid #e8e8e8;
+            padding-top: 12px;
             margin-bottom: 0;
         }
 
         .cart-actions {
             display: flex;
             gap: 12px;
-            padding: 0 28px 28px 28px;
+            padding: 0 24px 24px 24px;
         }
 
         .cart-actions button {
@@ -374,18 +385,21 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
 
         .form-control {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
+            padding: 11px 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
             font-size: 13px;
             font-family: inherit;
             margin-bottom: 10px;
+            background: #FAFAFA;
+            transition: all 0.2s ease;
         }
 
         .form-control:focus {
             outline: none;
             border-color: #d32f2f;
-            box-shadow: 0 0 0 3px rgba(211, 47, 47, 0.1);
+            background: #FFFFFF;
+            box-shadow: 0 0 0 3px rgba(211, 47, 47, 0.08);
         }
 
         .btn-logout {
@@ -410,10 +424,21 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
 
         /* additional standout box styles */
         .search-filter-container {
-            background: #fff;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #FFFFFF;
+            padding: 16px 14px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #f5f5f5;
+        }
+
+        .search-filter-container input,
+        .search-filter-container select {
+            margin-bottom: 12px;
+        }
+
+        .search-filter-container input:last-child,
+        .search-filter-container select:last-child {
+            margin-bottom: 0;
         }
 
         .header-actions .user-info {
@@ -447,9 +472,9 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
 
         @media (max-width: 1024px) {
             .product-grid {
-                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-                gap: 12px;
-                padding: 16px;
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                gap: 14px;
+                padding: 12px 0;
             }
         }
 
@@ -470,9 +495,9 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
             }
 
             .product-grid {
-                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-                gap: 10px;
-                padding: 12px;
+                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+                gap: 12px;
+                padding: 12px 0;
             }
         }
         <?php endif; ?>
