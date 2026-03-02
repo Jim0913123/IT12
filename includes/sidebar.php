@@ -1,4 +1,9 @@
-<aside class="sidebar">
+<?php 
+$user = getCurrentUser();
+$is_cashier = isset($user['role']) && $user['role'] === 'cashier';
+$is_admin = isAdmin();
+?>
+<aside class="sidebar<?php echo $is_cashier ? ' sidebar-hidden' : ''; ?>">
     <div class="sidebar-brand">
         <h2>
             <span class="icon">🛒</span>
@@ -7,18 +12,21 @@
     </div>
     
     <ul class="sidebar-menu">
+        <?php if (!$is_cashier): ?>
         <li>
             <a href="index.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'index.php' ? 'active' : ''; ?>">
                 <span class="icon">📊</span>
                 Dashboard
             </a>
         </li>
+        <?php endif; ?>
         <li>
             <a href="pos.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'pos.php' ? 'active' : ''; ?>">
                 <span class="icon">💳</span>
                 Point of Sale
             </a>
         </li>
+        <?php if (!$is_cashier): ?>
         <li>
             <a href="inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>" onclick="toggleInventoryDropdown(event)">
                 <span class="icon">📦</span>
@@ -58,7 +66,8 @@
                 Sales History
             </a>
         </li>
-        <?php if (isAdmin()): ?>
+        <?php endif; ?>
+        <?php if ($is_admin): ?>
         <li>
             <a href="categories.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'categories.php' ? 'active' : ''; ?>">
                 <span class="icon">�</span>

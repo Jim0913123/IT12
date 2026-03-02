@@ -5,6 +5,12 @@ require_once 'includes/auth.php';
 requireLogin();
 $user = getCurrentUser();
 
+// Redirect cashiers to POS
+if ($user['role'] === 'cashier') {
+    header('Location: pos.php');
+    exit();
+}
+
 // Get statistics
 $stats = [];
 
