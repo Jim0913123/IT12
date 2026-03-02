@@ -60,7 +60,7 @@ function updateCart() {
         cartItemsDiv.innerHTML = cart.map((item, index) => `
             <div class="cart-item">
                 <div class="cart-item-details">
-                    <h4>${item.name}${item.cupSize && item.cupSize !== 'none' ? ` (${item.cupSize})` : ''}</h4>
+                    <h4>${item.name}</h4>
                     <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
                 </div>
                 <div class="cart-item-actions">
@@ -70,13 +70,33 @@ function updateCart() {
                         <span style="font-weight: 600; min-width: 30px; text-align: center;">${item.quantity}</span>
                         <button class="quantity-btn" onclick="increaseQuantity(${index})">+</button>
                     </div>
-                    <button class="btn btn-danger btn-sm" onclick="removeFromCart(${index})" style="padding: 4px 8px;">Remove</button>
                 </div>
             </div>
         `).join('');
     }
     
     updateTotals();
+}
+
+// Update quantity
+function updateQuantity(index, newQuantity) {
+    const qty = parseInt(newQuantity);
+    
+    if (isNaN(qty) || qty < 1) {
+        alert('Quantity must be at least 1');
+        updateCart();
+        return;
+    }
+    
+    if (qty > cart[index].stock) {
+        alert('Cannot add more. Insufficient stock!');
+        updateCart();
+        return;
+    }
+    
+    cart[index].quantity = qty;
+    cart[index].subtotal = cart[index].quantity * cart[index].price;
+    updateCart();
 }
 
 // Increase quantity
@@ -104,6 +124,8 @@ function removeFromCart(index) {
     cart.splice(index, 1);
     updateCart();
 }
+
+
 
 // Clear cart
 function clearCart() {
@@ -176,30 +198,127 @@ function closeCheckout() {
     document.getElementById('checkoutModal').classList.remove('active');
 }
 
+// SALE VOID MODAL HELPERS
+function openSaleVoidModal() {
+    document.getElementById('saleAdminPassword').value = '';
+    document.getElementById('saleVoidReason').value = '';
+    document.getElementById('saleCharCount').textContent = '0';
+    document.getElementById('saleVoidModal').classList.add('active');
+    setTimeout(() => document.getElementById('saleAdminPassword').focus(), 100);
+}
+
+function closeSaleVoidModal() {
+    document.getElementById('saleVoidModal').classList.remove('active');
+    document.getElementById('saleVoidForm').reset();
+}
+
+// sale form char counter
+document.getElementById('saleVoidReason')?.addEventListener('input', function() {
+    const cnt = this.value.length;
+    document.getElementById('saleCharCount').textContent = cnt;
+    if (cnt > 500) {
+        this.value = this.value.substring(0, 500);
+        document.getElementById('saleCharCount').textContent = '500';
+    }
+});
+
+// handle sale void submission
+document.getElementById('saleVoidForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const adminPassword = document.getElementById('saleAdminPassword').value;
+    const reason = document.getElementById('saleVoidReason').value.trim();
+    if (!reason) {
+        alert('Please enter a reason for voiding the sale');
+        return;
+    }
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const orig = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Authorizing...';
+    try {
+        // send current cart along with request so server can audit what was cancelled
+        const response = await fetch('api/void_item.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                sale_item_id: 0,
+                admin_password: adminPassword,
+                void_reason: reason,
+                cart_items: cart
+            })
+        });
+        const result = await response.json();
+        submitBtn.disabled = false;
+        submitBtn.textContent = orig;
+        if (response.ok && result.success) {
+            cart.forEach(i=>i.voided=true);
+            updateCart();
+            closeSaleVoidModal();
+            alert('Sale cancelled and recorded (admin authorized)');
+        } else if (response.status===401) {
+            alert('Invalid admin password');
+        } else {
+            alert('Error: ' + (result.error||'Unable to void sale'));
+        }
+    } catch(err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = orig;
+        alert('Error contacting server');
+    }
+});
+
 // Display cart items in modal
 function displayModalCart() {
     const modalCartItems = document.getElementById('modalCartItems');
+    const activeItems = cart.filter(item => !item.voided);
+    const voidedItems = cart.filter(item => item.voided);
     
-    if (cart.length === 0) {
+    if (activeItems.length === 0 && voidedItems.length === 0) {
         modalCartItems.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 20px;">Cart is empty</p>';
     } else {
-        modalCartItems.innerHTML = cart.map(item => `
-            <div class="cart-item">
-                <div class="cart-item-details">
-                    <h4>${item.name}</h4>
-                    <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
+        let html = '';
+        
+        // Display active items
+        if (activeItems.length > 0) {
+            html += activeItems.map(item => `
+                <div class="cart-item">
+                    <div class="cart-item-info">
+                        <div class="cart-item-name">${item.name}</div>
+                        <div class="cart-item-price">₱${item.price.toFixed(2)}</div>
+                    </div>
+                    <div class="cart-item-actions">
+                        <span style="min-width: 30px; text-align: center; font-weight: 600;">×${item.quantity}</span>
+                        <strong style="min-width: 70px; text-align: right;">₱${item.subtotal.toFixed(2)}</strong>
+                    </div>
                 </div>
-                <div class="cart-item-actions">
-                    <strong style="color: var(--primary);">₱${item.subtotal.toFixed(2)}</strong>
+            `).join('');
+        }
+        
+        // Display voided items (if any)
+        if (voidedItems.length > 0) {
+            html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 2px solid #e8e8e8;">';
+            html += '<p style="font-size: 12px; color: #999; margin: 0 0 8px 0; text-transform: uppercase; font-weight: 600;">Voided Items</p>';
+            html += voidedItems.map(item => `
+                <div class="cart-item voided-item">
+                    <div class="cart-item-info">
+                        <div class="cart-item-name">${item.name} <span class="voided-badge">VOIDED</span></div>
+                        <div class="cart-item-price">₱${item.price.toFixed(2)}</div>
+                    </div>
+                    <div class="cart-item-actions">
+                        <span style="min-width: 30px; text-align: center; font-weight: 600;">×${item.quantity}</span>
+                        <strong style="min-width: 70px; text-align: right;">₱${item.subtotal.toFixed(2)}</strong>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `).join('');
+            html += '</div>';
+        }
+        
+        modalCartItems.innerHTML = html;
     }
 }
 
 // Update modal totals
 function updateModalTotals() {
-    console.log('Cart items for modal total calculation:', cart); // Debug log
     const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
     const tax = subtotal * 0.12;
     const discount = parseFloat(document.getElementById('discountAmount').value || 0);
@@ -215,7 +334,8 @@ function updateModalTotals() {
 
 // Calculate change in modal
 function calculateModalChange() {
-    const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
+    const activeItems = cart.filter(item => !item.voided);
+    const subtotal = activeItems.reduce((sum, item) => sum + item.subtotal, 0);
     const tax = subtotal * 0.12;
     const discount = parseFloat(document.getElementById('discountAmount').value || 0);
     const total = subtotal + tax - discount;
@@ -231,12 +351,20 @@ document.getElementById('amountPaid')?.addEventListener('input', calculateModalC
 document.getElementById('discountAmount')?.addEventListener('input', updateModalTotals);
 
 // Handle checkout form submission
-document.getElementById('checkoutForm')?.addEventListener('submit', function(e) {
+document.getElementById('checkoutForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     
     console.log('Checkout form submitted'); // Debug log
     
-    const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
+    // Filter out voided items
+    const activeItems = cart.filter(item => !item.voided);
+    
+    if (activeItems.length === 0) {
+        alert('No items to checkout. All items have been voided.');
+        return;
+    }
+    
+    const subtotal = activeItems.reduce((sum, item) => sum + item.subtotal, 0);
     const tax = subtotal * 0.12;
     const discount = parseFloat(document.getElementById('discountAmount').value || 0);
     const total = subtotal + tax - discount;
@@ -265,20 +393,36 @@ document.getElementById('checkoutForm')?.addEventListener('submit', function(e) 
         total: total,
         paid: paid,
         change: paid - total,
-        cart_items: JSON.stringify(cart)
+        items: cart
     };
     
-    for (const [key, value] of Object.entries(fields)) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = value;
-        form.appendChild(input);
+    try {
+        const response = await fetch('api/process-sale.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(saleData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Sale completed successfully!\nInvoice: ' + result.invoice);
+            cart = [];
+            updateCart();
+            closeCheckout();
+            
+            // Optionally print receipt or redirect
+            if (confirm('Would you like to view the receipt?')) {
+                window.open('receipt.php?invoice=' + result.invoice, '_blank');
+            }
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error processing sale: ' + error.message);
     }
-    
-    // Submit form
-    document.body.appendChild(form);
-    form.submit();
 });
 
 // Search products
@@ -314,7 +458,19 @@ document.getElementById('filterCategory')?.addEventListener('change', function()
 
 // Close modal on outside click
 window.addEventListener('click', function(e) {
-    if (e.target.classList.contains('modal')) {
+    const checkoutModal = document.getElementById('checkoutModal');
+    const voidModal = document.getElementById('voidModal');
+    const saleModal = document.getElementById('saleVoidModal');
+    
+    if (e.target === checkoutModal) {
         closeCheckout();
+    }
+    
+    if (e.target === voidModal) {
+        closeVoidModal();
+    }
+    
+    if (e.target === saleModal) {
+        closeSaleVoidModal();
     }
 });

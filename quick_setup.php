@@ -94,6 +94,18 @@
                     subtotal DECIMAL(10, 2) NOT NULL,
                     FOREIGN KEY (sale_id) REFERENCES sales(sale_id) ON DELETE CASCADE,
                     FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE
+                )",
+                
+                // voided sale audit
+                "CREATE TABLE IF NOT EXISTS sale_voids (
+                    void_id INT AUTO_INCREMENT PRIMARY KEY,
+                    voided_at DATETIME NOT NULL,
+                    voided_by INT,
+                    requested_by INT,
+                    void_reason TEXT NOT NULL,
+                    cart_items TEXT,
+                    FOREIGN KEY (voided_by) REFERENCES users(user_id) ON DELETE SET NULL,
+                    FOREIGN KEY (requested_by) REFERENCES users(user_id) ON DELETE SET NULL
                 )"
             ];
             
