@@ -459,15 +459,10 @@ document.getElementById('filterCategory')?.addEventListener('change', function()
 // Close modal on outside click
 window.addEventListener('click', function(e) {
     const checkoutModal = document.getElementById('checkoutModal');
-    const voidModal = document.getElementById('voidModal');
     const saleModal = document.getElementById('saleVoidModal');
     
     if (e.target === checkoutModal) {
         closeCheckout();
-    }
-    
-    if (e.target === voidModal) {
-        closeVoidModal();
     }
     
     if (e.target === saleModal) {
