@@ -50,13 +50,31 @@ $items = $conn->query("
         }
         .receipt-header {
             text-align: center;
-            border-bottom: 2px solid #333;
-            padding-bottom: 20px;
             margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px dashed #ddd;
         }
+        
         .receipt-header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .receipt-header img {
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .receipt-header p {
+            margin: 15px 0 0 0;
+            font-size: 20px;
+            color: var(--text-secondary);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
         .receipt-info {
             display: grid;
@@ -128,7 +146,8 @@ $items = $conn->query("
 <body>
     <div class="receipt-container">
         <div class="receipt-header">
-            <h1>🛒 POS & Inventory System</h1>
+            <h1></h1>
+            <img src="pictures/poprie.jpg" alt="POPRIE Logo" width="100" height="100"/>
             <p>Sales Receipt</p>
         </div>
         
@@ -209,7 +228,7 @@ $items = $conn->query("
         
         <div class="no-print" style="text-align: center; margin-top: 30px;">
             <button class="btn btn-primary" onclick="window.print()">Print Receipt</button>
-            <button class="btn btn-secondary" onclick="window.close()">Close</button>
+            <button class="btn btn-secondary" onclick="window.location.href='pos.php'">Back to POS</button>
         </div>
     </div>
 </body>

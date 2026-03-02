@@ -32,13 +32,21 @@ $stats['today_transactions'] = $today['count'];
 $result = $conn->query("SELECT COALESCE(SUM(stock_quantity * cost_price), 0) as value FROM products WHERE status = 'active'");
 $stats['inventory_value'] = $result->fetch_assoc()['value'];
 
-// Recent Sales
+// Recent Sales with pagination
+$page = $_GET['sales_page'] ?? 1;
+$limit = 5;
+$offset = ($page - 1) * $limit;
+
+// Get total recent sales count
+$total_recent_sales = $conn->query("SELECT COUNT(*) as count FROM sales")->fetch_assoc()['count'];
+$total_sales_pages = ceil($total_recent_sales / $limit);
+
 $recent_sales = $conn->query("
     SELECT s.*, u.full_name 
     FROM sales s 
     LEFT JOIN users u ON s.user_id = u.user_id 
     ORDER BY s.sale_date DESC 
-    LIMIT 10
+    LIMIT $limit OFFSET $offset
 ");
 
 // Low Stock Products
@@ -165,6 +173,31 @@ $low_stock_products = $conn->query("
                                 <?php endif; ?>
                             </tbody>
                         </table>
+                    </div>
+                    
+                    <!-- Recent Sales Pagination -->
+                    <?php if ($total_sales_pages > 1): ?>
+                        <div class="pagination" style="display: flex; justify-content: center; gap: 8px; margin-top: 16px;">
+                            <?php if ($page > 1): ?>
+                                <a href="?sales_page=<?php echo $page - 1; ?>" class="btn btn-secondary btn-sm">« Previous</a>
+                            <?php endif; ?>
+                            
+                            <?php for ($i = 1; $i <= $total_sales_pages; $i++): ?>
+                                <?php if ($i == $page): ?>
+                                    <span class="btn btn-primary btn-sm"><?php echo $i; ?></span>
+                                <?php else: ?>
+                                    <a href="?sales_page=<?php echo $i; ?>" class="btn btn-secondary btn-sm"><?php echo $i; ?></a>
+                                <?php endif; ?>
+                            <?php endfor; ?>
+                            
+                            <?php if ($page < $total_sales_pages): ?>
+                                <a href="?sales_page=<?php echo $page + 1; ?>" class="btn btn-secondary btn-sm">Next »</a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <div style="text-align: center; margin-top: 12px; color: var(--text-secondary); font-size: 12px;">
+                        Showing <?php echo ($offset + 1) . ' - ' . min($offset + $limit, $total_recent_sales); ?> of <?php echo $total_recent_sales; ?> recent sales
                     </div>
                 </div>
             </div>
