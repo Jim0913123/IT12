@@ -226,6 +226,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
             padding-bottom: 16px;
             letter-spacing: 0.3px;
             text-transform: uppercase;
+            text-align: center; /* center heading */
         }
 
         .cart-items {
@@ -407,6 +408,21 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
             box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
         }
 
+        /* additional standout box styles */
+        .search-filter-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .header-actions .user-info {
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
         /* SCROLLBAR STYLING */
         .cart-items::-webkit-scrollbar,
         .product-grid::-webkit-scrollbar {
@@ -484,7 +500,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         <div class="pos-grid">
             <!-- PRODUCTS -->
             <div class="pos-products">
-                <div style="margin-bottom: 16px;">
+                <div class="search-filter-container" style="margin-bottom: 16px;">
                     <input type="text" id="searchProduct" class="form-control" placeholder="Search products..." style="margin-bottom: 12px;">
                     
                     <select id="filterCategory" class="form-control">
