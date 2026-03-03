@@ -5,6 +5,12 @@ require_once 'includes/auth.php';
 requireLogin();
 $user = getCurrentUser();
 
+// Only cashiers can access POS
+if ($user['role'] !== 'cashier') {
+    header("Location: index.php");
+    exit();
+}
+
 // Get all active products with categories
 $products = $conn->query("
     SELECT p.*, c.category_name 
@@ -854,55 +860,34 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
     </div>
 </div>
 
-<!-- ITEM VOID AUTHORIZATION MODAL -->
-<div id="voidModal" class="modal">
+<!-- SALE VOID AUTHORIZATION MODAL -->
+<div id="saleVoidModal" class="modal">
     <div class="modal-content" style="max-width: 450px;">
         <div class="modal-header">
-            <h2>Void Item Authorization</h2>
-            <button class="modal-close" onclick="closeVoidModal()">&times;</button>
+            <h2>Void Entire Sale</h2>
+            <button class="modal-close" onclick="closeSaleVoidModal()">&times;</button>
         </div>
-        
         <div class="modal-body">
-            <div style="margin-bottom: 16px;">
-                <p style="color: #666; font-size: 13px; margin: 0 0 16px 0;">
-                    This item requires admin authorization to void.
-                </p>
-                
-                <form id="voidForm">
-                    <input type="hidden" id="voidSaleItemId">
-                    
-                    <div class="form-group">
-                        <label style="font-weight: 600; display: block; margin-bottom: 8px; color: #333;">
-                            Admin Password
-                        </label>
-                        <input type="password" class="form-control" id="adminPassword" 
-                               placeholder="Enter admin password" required>
+            <p style="color: #666; font-size: 13px; margin: 0 0 16px 0;">
+                Admin password and reason required to void the entire sale.
+            </p>
+            <form id="saleVoidForm">
+                <div class="form-group">
+                    <label>Admin Password</label>
+                    <input type="password" class="form-control" id="saleAdminPassword" placeholder="Enter admin password" required>
+                </div>
+                <div class="form-group">
+                    <label>Reason <span style="color: #d32f2f;">*</span></label>
+                    <textarea class="form-control" id="saleVoidReason" rows="4" required></textarea>
+                    <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                        <span id="saleCharCount">0</span>/500 characters
                     </div>
-
-                    <div class="form-group">
-                        <label style="font-weight: 600; display: block; margin-bottom: 8px; color: #333;">
-                            Void Reason <span style="color: #d32f2f;">*</span>
-                        </label>
-                        <textarea class="form-control" id="voidReason" 
-                                  placeholder="Enter reason for voiding this item..." 
-                                  rows="4" required 
-                                  style="resize: vertical; font-family: inherit;"></textarea>
-                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
-                            <span id="charCount">0</span>/500 characters
-                        </div>
-                    </div>
-
-                    <div style="display: flex; gap: 8px; margin-top: 20px;">
-                        <button type="button" class="btn btn-secondary" 
-                                onclick="closeVoidModal()" style="flex: 1;">
-                            Cancel
-                        </button>
-                        <button type="submit" class="btn btn-danger" style="flex: 1;">
-                            Confirm Void
-                        </button>
-                    </div>
-                </form>
-            </div>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeSaleVoidModal()" style="flex:1;">Cancel</button>
+                    <button type="submit" class="btn btn-danger" style="flex:1;">Void Sale</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

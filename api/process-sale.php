@@ -77,6 +77,18 @@ try {
         if (!$conn->query($updateStock)) {
             throw new Exception("Error updating stock: " . $conn->error);
         }
+
+        // Log stock movement (deduction)
+        $logMovement = "
+            INSERT INTO stock_movements 
+            (product_id, movement_type, quantity, reference_id, notes, user_id, movement_date)
+            VALUES
+            ($product_id, 'sale', $quantity, $sale_id, 'Sale deduction', {$user['user_id']}, NOW())
+        ";
+
+        if (!$conn->query($logMovement)) {
+            throw new Exception("Error logging stock movement: " . $conn->error);
+        }
     }
 
     // Commit transaction

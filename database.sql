@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     cost_price DECIMAL(10, 2) NOT NULL,
     selling_price DECIMAL(10, 2) NOT NULL,
+    size VARCHAR(20),
     stock_quantity INT DEFAULT 0,
     reorder_level INT DEFAULT 10,
     barcode VARCHAR(100),
@@ -87,14 +88,15 @@ CREATE TABLE IF NOT EXISTS sale_voids (
 CREATE TABLE IF NOT EXISTS stock_movements (
     movement_id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT,
-    movement_type ENUM('in', 'out', 'adjustment') NOT NULL,
+    movement_type ENUM('in', 'out', 'adjustment', 'sale', 'void') NOT NULL,
     quantity INT NOT NULL,
-    reference VARCHAR(100),
+    reference_id INT,
     notes TEXT,
     user_id INT,
     movement_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+);
 );
 
 -- Insert Default Admin User (password: admin123)
