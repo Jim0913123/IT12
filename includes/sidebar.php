@@ -48,7 +48,7 @@ $is_admin = isAdmin();
                     </a>
                 </li>
                 <li>
-                    <a href="inventory.php#cup-inventory" class="<?php echo basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'active' : ''; ?>">
+                    <a href="cup_inventory.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'cup_inventory.php' ? 'active' : ''; ?>">
                         <span class="icon">🥤</span>
                         Cup Inventory
                     </a>

@@ -237,6 +237,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                                             <td><?php echo $product['reorder_level']; ?></td>
                                             <td>
                                                 <button class="btn btn-warning btn-sm" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($product)); ?>)">Edit</button>
+                                                <button class="btn btn-info btn-sm" onclick="openStockModal(<?php echo htmlspecialchars(json_encode($product)); ?>)">Stock</button>
                                                 <button class="btn btn-danger btn-sm" onclick="deleteProduct(<?php echo $product['product_id']; ?>)">Delete</button>
                                             </td>
                                         </tr>
@@ -352,6 +353,53 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         </div>
     </div>
     
+    <!-- Stock Adjustment Modal -->
+    <div id="stockModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Adjust Stock</h2>
+                <button class="modal-close" onclick="closeStockModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="" id="stockForm">
+                    <input type="hidden" name="product_id" id="stockProductId">
+                    <input type="hidden" name="adjust_stock" value="1">
+                    
+                    <div class="form-group">
+                        <label>Product Name</label>
+                        <input type="text" class="form-control" id="stockProductName" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Current Stock</label>
+                        <input type="number" class="form-control" id="currentStock" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Adjustment Type</label>
+                        <select class="form-control" name="adjustment_type" id="adjustmentType">
+                            <option value="add">Add Stock (+)</option>
+                            <option value="subtract">Remove Stock (-)</option>
+                            <option value="set">Set Stock</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Quantity</label>
+                        <input type="number" class="form-control" name="adjustment_quantity" id="adjustmentQuantity" min="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea class="form-control" name="adjustment_notes" id="adjustmentNotes" rows="3"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Adjust Stock</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script>
         function openAddModal() {
             document.getElementById('modalTitle').textContent = 'Add Product';
@@ -381,6 +429,17 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         
         function closeProductModal() {
             document.getElementById('productModal').classList.remove('active');
+        }
+        
+        function openStockModal(product) {
+            document.getElementById('stockProductId').value = product.product_id;
+            document.getElementById('stockProductName').value = product.product_name;
+            document.getElementById('currentStock').value = product.stock_quantity;
+            document.getElementById('stockModal').classList.add('active');
+        }
+        
+        function closeStockModal() {
+            document.getElementById('stockModal').classList.remove('active');
         }
         
         function deleteProduct(id) {
