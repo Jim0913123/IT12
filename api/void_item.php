@@ -138,6 +138,25 @@ if ($sale_item_id !== 0) {
         exit;
     }
     $void_stmt->close();
+
+    // Restore stock when item is voided
+    $restoreStock = "UPDATE products SET stock_quantity = stock_quantity + ? WHERE product_id = ?";
+    $restore_stmt = $conn->prepare($restoreStock);
+    if ($restore_stmt) {
+        $restore_stmt->bind_param('ii', $sale_item['quantity'], $sale_item['product_id']);
+        $restore_stmt->execute();
+        $restore_stmt->close();
+
+        // Log stock movement (void restoration)
+        $logMovement = "INSERT INTO stock_movements (product_id, movement_type, quantity, reference_id, notes, user_id, movement_date)
+                        VALUES (?, 'void', ?, ?, 'Item void restoration', ?, NOW())";
+        $log_stmt = $conn->prepare($logMovement);
+        if ($log_stmt) {
+            $log_stmt->bind_param('iiii', $sale_item['product_id'], $sale_item['quantity'], $sale_item_id, $verified_admin_id);
+            $log_stmt->execute();
+            $log_stmt->close();
+        }
+    }
 } else {
     // sale-level authorization (user cancels current cart). Record audit entry.
     $cart_json = null;

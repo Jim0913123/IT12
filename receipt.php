@@ -24,9 +24,11 @@ if ($sale_result->num_rows === 0) {
 
 $sale = $sale_result->fetch_assoc();
 
-// Get sale items
+// Get sale items with product details
 $items = $conn->query("
-    SELECT * FROM sale_items WHERE sale_id = {$sale['sale_id']}
+    SELECT si.*, p.size FROM sale_items si
+    LEFT JOIN products p ON si.product_id = p.product_id
+    WHERE si.sale_id = {$sale['sale_id']}
 ");
 ?>
 <!DOCTYPE html>
@@ -150,6 +152,23 @@ $items = $conn->query("
             <img src="pictures/poprie.jpg" alt="POPRIE Logo" width="100" height="100"/>
             <p>Sales Receipt</p>
         </div>
+
+        <?php
+        // Check if sale is voided
+        $void_check = $conn->query("
+            SELECT sv.* FROM sale_voids sv 
+            WHERE sv.cart_items LIKE '%\"id\":{$sale['sale_id']}%' 
+            OR sv.void_id = {$sale['sale_id']}
+            LIMIT 1
+        ");
+        $is_voided = $void_check && $void_check->num_rows > 0 ? $void_check->fetch_assoc() : null;
+        ?>
+
+        <?php if ($is_voided): ?>
+        <div style="background: #fee; border: 2px solid #c33; color: #c33; padding: 16px; margin: 20px 0; text-align: center; font-weight: bold; font-size: 18px; border-radius: 6px;">
+            ❌ VOIDED SALE - NOT VALID FOR TRANSACTION
+        </div>
+        <?php endif; ?>
         
         <div class="receipt-info">
             <div class="info-block">
@@ -173,6 +192,7 @@ $items = $conn->query("
             <thead>
                 <tr>
                     <th>Item</th>
+                    <th>Size</th>
                     <th>Quantity</th>
                     <th>Unit Price</th>
                     <th>Subtotal</th>
@@ -182,6 +202,7 @@ $items = $conn->query("
                 <?php while ($item = $items->fetch_assoc()): ?>
                     <tr>
                         <td><?php echo htmlspecialchars($item['product_name']); ?></td>
+                        <td><?php echo $item['size'] ?: '—'; ?></td>
                         <td><?php echo $item['quantity']; ?></td>
                         <td>₱<?php echo number_format($item['unit_price'], 2); ?></td>
                         <td>₱<?php echo number_format($item['subtotal'], 2); ?></td>

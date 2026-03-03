@@ -23,12 +23,15 @@ $is_admin = isAdmin();
         </li>
         <?php endif; ?>
 
+        <!-- POS - CASHIERS ONLY -->
+        <?php if ($is_cashier): ?>
         <li>
             <a href="pos.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'pos.php' ? 'active' : ''; ?>">
                 <span class="icon">💳</span>
                 Point of Sale
             </a>
         </li>
+        <?php endif; ?>
 
         <?php if (!$is_cashier): ?>
         <li>
@@ -90,6 +93,12 @@ $is_admin = isAdmin();
             <a href="users.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>">
                 <span class="icon">👥</span>
                 Users
+            </a>
+        </li>
+        <li>
+            <a href="voids.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'voids.php' ? 'active' : ''; ?>">
+                <span class="icon">❌</span>
+                Voided Sales
             </a>
         </li>
         <?php endif; ?>
