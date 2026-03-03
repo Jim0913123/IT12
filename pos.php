@@ -297,8 +297,8 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         }
 
         .btn-void {
-            background: #ff6b6b;
-            color: white;
+            background: #ffc107;
+            color: #212529;
             border: none;
             padding: 4px 8px;
             border-radius: 4px;
@@ -311,7 +311,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
         }
 
         .btn-void:hover {
-            background: #d32f2f;
+            background: #e0a800;
             transform: scale(1.05);
         }
 
@@ -684,7 +684,15 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
     
     <div class="main-content">
         <div class="header">
-            <h1>Point of Sale</h1>
+            <div class="header-left">
+                <!-- Hamburger Menu Button -->
+                <button class="hamburger-menu" onclick="toggleSidebar()">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <h1>Point of Sale</h1>
+            </div>
             <div class="header-actions">
                 <div class="user-info">
                     <div class="user-avatar"><?php echo strtoupper(substr($user['full_name'], 0, 1)); ?></div>
@@ -764,7 +772,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                 
                 <div style="margin-top: 16px; display: flex; gap: 8px;">
                     <button class="btn btn-danger" onclick="clearCart()" style="flex:1;">Clear</button>
-                    <button class="btn btn-warning" onclick="openSaleVoidModal()" style="flex:1;">Void Sale</button>
+                    <button class="btn-void" onclick="openSaleVoidModal()" style="flex:1; padding: 12px 16px; font-size: 13px;">Void Sale</button>
                     <button class="btn btn-success" onclick="openCheckout()" style="flex:2;">Complete Sale</button>
                 </div>
             </div>
@@ -859,7 +867,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
     <div class="modal-content" style="max-width: 450px;">
         <div class="modal-header">
             <h2>Void Item Authorization</h2>
-            <button class="modal-close" onclick="closeVoidModal()">&times;</button>
+            <button class="modal-close" onclick="document.getElementById('voidModal').classList.remove('active'); document.getElementById('voidForm').reset();">&times;</button>
         </div>
         
         <div class="modal-body">
@@ -868,14 +876,22 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                     This item requires admin authorization to void.
                 </p>
                 
-                <form id="voidForm">
-                    <input type="hidden" id="voidSaleItemId">
+                <div style="margin-bottom: 16px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 8px; color: #333;">
+                        Item to Void
+                    </label>
+                    <div id="voidItemName" style="padding: 8px 12px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-weight: 500; color: #495057;"></div>
+                </div>
+                
+                <form id="voidForm" method="POST" action="">
+                    <input type="hidden" id="voidSaleItemId" name="sale_item_id">
+                    <input type="hidden" name="void_item" value="1">
                     
                     <div class="form-group">
                         <label style="font-weight: 600; display: block; margin-bottom: 8px; color: #333;">
                             Admin Password
                         </label>
-                        <input type="password" class="form-control" id="adminPassword" 
+                        <input type="password" class="form-control" id="adminPassword" name="admin_password"
                                placeholder="Enter admin password" required>
                     </div>
 
@@ -883,7 +899,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                         <label style="font-weight: 600; display: block; margin-bottom: 8px; color: #333;">
                             Void Reason <span style="color: #d32f2f;">*</span>
                         </label>
-                        <textarea class="form-control" id="voidReason" 
+                        <textarea class="form-control" id="voidReason" name="void_reason"
                                   placeholder="Enter reason for voiding this item..." 
                                   rows="4" required 
                                   style="resize: vertical; font-family: inherit;"></textarea>

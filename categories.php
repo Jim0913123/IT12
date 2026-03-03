@@ -32,8 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         
-        // Soft delete or hard delete - using soft delete approach
-        $stmt = $conn->prepare("UPDATE categories SET deleted_at = NOW() WHERE category_id = ?");
+        // Hard delete category
+        $stmt = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
         $stmt->bind_param("i", $category_id);
         $stmt->execute();
         
@@ -50,8 +50,7 @@ $offset = ($page - 1) * $limit;
 // Get total category count
 $total_categories = $conn->query("
     SELECT COUNT(*) as count 
-    FROM categories 
-    WHERE deleted_at IS NULL
+    FROM categories
 ")->fetch_assoc()['count'];
 $total_pages = ceil($total_categories / $limit);
 
@@ -60,7 +59,6 @@ $categories = $conn->query("
     SELECT c.*, COUNT(p.product_id) as product_count 
     FROM categories c 
     LEFT JOIN products p ON c.category_id = p.category_id AND p.status = 'active'
-    WHERE c.deleted_at IS NULL
     GROUP BY c.category_id 
     ORDER BY c.category_name ASC
     LIMIT $limit OFFSET $offset

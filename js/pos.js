@@ -1,5 +1,60 @@
 // Cart data
 let cart = [];
+let selectedCupSize = {};
+
+// Test if JavaScript is loading
+console.log('POS JavaScript loaded successfully!');
+alert('JavaScript is working!');
+
+// Select cup size for drink
+function selectCupSize(button, event) {
+    event.stopPropagation();
+    
+    const productCard = button.closest('.product-card');
+    const productId = productCard.dataset.id;
+    const cupSize = button.dataset.cupSize;
+    
+    // Clear previous selection for this product
+    const cupButtons = productCard.querySelectorAll('.cup-btn');
+    cupButtons.forEach(btn => btn.classList.remove('selected'));
+    
+    // Select current button
+    button.classList.add('selected');
+    
+    // Store selected cup size
+    selectedCupSize[productId] = cupSize;
+    
+    console.log('Selected cup size:', productId, cupSize);
+    
+    // Automatically add to cart after cup size selection
+    setTimeout(() => {
+        addToCart(productCard);
+    }, 100);
+}
+
+// Handle product card click
+function handleProductClick(element, event) {
+    console.log('Product clicked:', element.dataset);
+    const isDrink = element.dataset.isDrink === 'true';
+    console.log('Is drink:', isDrink);
+    
+    if (isDrink) {
+        // For all drinks (including Hot Coffee), require cup size selection
+        const productId = element.dataset.id;
+        console.log('Product ID:', productId);
+        console.log('Selected cup sizes:', selectedCupSize);
+        
+        if (!selectedCupSize[productId]) {
+            alert('Please select a cup size (12oz or 16oz) for this drink!');
+            return;
+        }
+        // If cup size is selected, add to cart
+        addToCart(element);
+    } else {
+        // For non-drinks, add directly to cart
+        addToCart(element);
+    }
+}
 
 // Add product to cart
 function addToCart(element) {
@@ -10,16 +65,29 @@ function addToCart(element) {
     const productName = element.dataset.name;
     const productPrice = parseFloat(element.dataset.price);
     const productStock = parseInt(element.dataset.stock);
+    const isDrink = element.dataset.isDrink === 'true';
     
-    console.log('Product details:', { productId, productCode, productName, productPrice, productStock }); // Debug log
+    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, isDrink }); // Debug log
+    
+    // Check if it's a drink and cup size is selected
+    if (isDrink && !selectedCupSize[productId]) {
+        alert('Please select a cup size (12oz or 16oz) for this drink!');
+        return;
+    }
     
     if (productStock <= 0) {
         alert('Product is out of stock!');
         return;
     }
     
+    // Get cup size for drinks
+    const cupSize = isDrink ? selectedCupSize[productId] : 'none';
+    
+    // Create unique key for cart items (product + cup size)
+    const cartKey = isDrink ? `${productId}_${cupSize}` : productId;
+    
     // Check if product already in cart
-    const existingItem = cart.find(item => item.id === productId);
+    const existingItem = cart.find(item => item.cartKey === cartKey);
     
     if (existingItem) {
         console.log('Product already in cart, updating quantity'); // Debug log
@@ -34,13 +102,16 @@ function addToCart(element) {
     } else {
         console.log('Adding new product to cart'); // Debug log
         const newItem = {
+            cartKey: cartKey,
             id: productId,
             code: productCode,
             name: productName,
             price: productPrice,
             quantity: 1,
             stock: productStock,
-            subtotal: productPrice
+            subtotal: productPrice,
+            cupSize: cupSize,
+            isDrink: isDrink
         };
         console.log('New item created:', newItem); // Debug log
         cart.push(newItem);
@@ -58,7 +129,7 @@ function updateCart() {
         cartItemsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">Cart is empty</p>';
     } else {
         cartItemsDiv.innerHTML = cart.map((item, index) => `
-            <div class="cart-item">
+            <div class="cart-item" data-sale-item-id="${item.id || 'temp-' + index}">
                 <div class="cart-item-details">
                     <h4>${item.name}</h4>
                     <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
@@ -200,33 +271,47 @@ function closeCheckout() {
 
 // SALE VOID MODAL HELPERS
 function openSaleVoidModal() {
-    document.getElementById('saleAdminPassword').value = '';
-    document.getElementById('saleVoidReason').value = '';
-    document.getElementById('saleCharCount').textContent = '0';
-    document.getElementById('saleVoidModal').classList.add('active');
-    setTimeout(() => document.getElementById('saleAdminPassword').focus(), 100);
+    // Test if void modal exists
+    const voidModal = document.getElementById('voidModal');
+    if (!voidModal) {
+        alert('Void modal not found!');
+        return;
+    }
+    
+    // Test if form exists
+    const voidForm = document.getElementById('voidForm');
+    if (!voidForm) {
+        alert('Void form not found!');
+        return;
+    }
+    
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('voidReason').value = '';
+    document.getElementById('charCount').textContent = '0';
+    document.getElementById('voidModal').classList.add('active');
+    setTimeout(() => document.getElementById('adminPassword').focus(), 100);
 }
 
 function closeSaleVoidModal() {
-    document.getElementById('saleVoidModal').classList.remove('active');
-    document.getElementById('saleVoidForm').reset();
+    document.getElementById('voidModal').classList.remove('active');
+    document.getElementById('voidForm').reset();
 }
 
 // sale form char counter
-document.getElementById('saleVoidReason')?.addEventListener('input', function() {
+document.getElementById('voidReason')?.addEventListener('input', function() {
     const cnt = this.value.length;
-    document.getElementById('saleCharCount').textContent = cnt;
+    document.getElementById('charCount').textContent = cnt;
     if (cnt > 500) {
         this.value = this.value.substring(0, 500);
-        document.getElementById('saleCharCount').textContent = '500';
+        document.getElementById('charCount').textContent = '500';
     }
 });
 
 // handle sale void submission
-document.getElementById('saleVoidForm')?.addEventListener('submit', async function(e) {
+document.getElementById('voidForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
-    const adminPassword = document.getElementById('saleAdminPassword').value;
-    const reason = document.getElementById('saleVoidReason').value.trim();
+    const adminPassword = document.getElementById('adminPassword').value;
+    const reason = document.getElementById('voidReason').value.trim();
     if (!reason) {
         alert('Please enter a reason for voiding the sale');
         return;

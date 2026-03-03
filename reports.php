@@ -158,6 +158,35 @@ $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
     $payment_methods[] = $row;
 }
+
+// Get cup inventory data for drinks
+$cup_inventory_query = "
+    SELECT 
+        p.product_name,
+        si.cup_size,
+        COUNT(*) as total_cups_sold,
+        SUM(si.quantity) as total_quantity,
+        SUM(si.subtotal) as total_revenue
+    FROM sale_items si
+    JOIN sales s ON si.sale_id = s.sale_id
+    JOIN products p ON si.product_id = p.product_id
+    WHERE DATE(s.sale_date) BETWEEN ? AND ? 
+    AND si.cup_size != 'none'
+    GROUP BY si.product_id, p.product_name, si.cup_size
+    ORDER BY total_cups_sold DESC
+";
+
+$stmt = $conn->prepare($cup_inventory_query);
+$stmt->bind_param("ss", $start_date, $end_date);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$cup_inventory = [];
+$total_cups_sold = 0;
+while ($row = $result->fetch_assoc()) {
+    $cup_inventory[] = $row;
+    $total_cups_sold += $row['total_cups_sold'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -248,17 +277,19 @@ while ($row = $result->fetch_assoc()) {
                     <h3>Date Range</h3>
                 </div>
                 <div class="card-body">
-                    <form method="GET" class="form-row" style="display: flex; gap: 12px; align-items: end;">
+                    <form method="GET" class="form-row" style="display: flex; gap: 12px; align-items: flex-end;">
                         <div class="form-group" style="flex: 1;">
                             <label>Start Date</label>
                             <input type="date" name="start_date" value="<?php echo htmlspecialchars($start_date); ?>" class="form-control" required>
                         </div>
                         <div class="form-group" style="flex: 1;">
                             <label>End Date</label>
-                            <input type="date" name="end_date" value="<?php echo htmlspecialchars($end_date); ?>" class="form-control" required>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="date" name="end_date" value="<?php echo htmlspecialchars($end_date); ?>" class="form-control" required style="flex: 1;">
+                                <button type="submit" class="btn btn-primary">Generate Report</button>
+                                <a href="reports.php" class="btn btn-secondary">Today</a>
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-primary">Generate Report</button>
-                        <a href="reports.php" class="btn btn-secondary">Today</a>
                     </form>
                 </div>
             </div>
@@ -575,6 +606,81 @@ while ($row = $result->fetch_assoc()) {
                             </div>
                         <?php endif; ?>
                     </div>
+                </div>
+            </div>
+            
+            <!-- Cup Inventory for Drinks -->
+            <div class="card" style="margin-top: 24px;">
+                <div class="card-header">
+                    <h3>🥤 Cup Inventory for Drinks</h3>
+                    <div style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">
+                        Total Cups Sold: <strong><?php echo $total_cups_sold; ?></strong>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Drink Product</th>
+                                    <th>Cup Size</th>
+                                    <th>Cups Sold</th>
+                                    <th>Total Quantity</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($cup_inventory)): ?>
+                                    <?php foreach ($cup_inventory as $cup): ?>
+                                        <tr>
+                                            <td><strong><?php echo htmlspecialchars($cup['product_name']); ?></strong></td>
+                                            <td>
+                                                <span style="display: inline-block; padding: 4px 8px; background: var(--primary); color: white; border-radius: 4px; font-size: 12px;">
+                                                    <?php echo htmlspecialchars($cup['cup_size']); ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo $cup['total_cups_sold']; ?></td>
+                                            <td><?php echo $cup['total_quantity']; ?></td>
+                                            <td>₱<?php echo number_format($cup['total_revenue'], 2); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; color: var(--text-secondary);">No cup inventory data found for this period</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <?php if (!empty($cup_inventory)): ?>
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--primary);">
+                            <h4 style="margin: 0 0 10px 0; color: var(--primary);">📊 Cup Size Summary</h4>
+                            <?php
+                            $cup_summary = [];
+                            foreach ($cup_inventory as $cup) {
+                                if (!isset($cup_summary[$cup['cup_size']])) {
+                                    $cup_summary[$cup['cup_size']] = [
+                                        'cups_sold' => 0,
+                                        'revenue' => 0
+                                    ];
+                                }
+                                $cup_summary[$cup['cup_size']]['cups_sold'] += $cup['total_cups_sold'];
+                                $cup_summary[$cup['cup_size']]['revenue'] += $cup['total_revenue'];
+                            }
+                            
+                            foreach ($cup_summary as $size => $data):
+                            ?>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span>
+                                        <strong><?php echo htmlspecialchars($size); ?>:</strong> 
+                                        <?php echo $data['cups_sold']; ?> cups
+                                    </span>
+                                    <span>₱<?php echo number_format($data['revenue'], 2); ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
