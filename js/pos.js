@@ -482,16 +482,11 @@ document.getElementById('itemVoidForm')?.addEventListener('submit', function(e) 
         
         document.body.appendChild(voidForm);
         
-        // Submit form - page will redirect, no need to remove form
+        // Submit form - page will redirect to save-void.php
         voidForm.submit();
         
-        // Record void for local reporting
-        recordVoid('individual_item', item.name, reason, [item]);
-        
-        updateCart();
-        closeItemVoidModal();
-        
-        alert(`Item "${item.name}" voided successfully`);
+        // Don't do anything else - page is navigating away
+        return;
         
     } catch(err) {
         console.error('Item void error:', err);
