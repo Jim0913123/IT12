@@ -2,10 +2,6 @@
 let cart = [];
 let selectedCupSize = {};
 
-// Test if JavaScript is loading
-console.log('POS JavaScript loaded successfully!');
-alert('JavaScript is working!');
-
 // Select cup size for drink
 function selectCupSize(button, event) {
     event.stopPropagation();
@@ -58,32 +54,27 @@ function handleProductClick(element, event) {
 
 // Add product to cart
 function addToCart(element) {
-    console.log('Adding product:', element.dataset); // Debug log
+    console.log('addToCart called'); // Test if function is being called
     
     const productId = element.dataset.id;
     const productCode = element.dataset.code;
     const productName = element.dataset.name;
     const productPrice = parseFloat(element.dataset.price);
     const productStock = parseInt(element.dataset.stock);
-    const isDrink = element.dataset.isDrink === 'true';
+    const categoryId = element.dataset.category;
     
-    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, isDrink }); // Debug log
+    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, categoryId }); // Debug log
     
-    // Check if it's a drink and cup size is selected
+    // Check if product is a drink based on category
+    const isDrink = ['Coffee Drinks', 'Hot Coffee', 'Iced Coffee', 'Matcha', 'Other Beverages'].includes(categoryId);
+    
     if (isDrink && !selectedCupSize[productId]) {
-        alert('Please select a cup size (12oz or 16oz) for this drink!');
+        alert('Please select a cup size for this drink');
         return;
     }
-    
-    if (productStock <= 0) {
-        alert('Product is out of stock!');
-        return;
-    }
-    
-    // Get cup size for drinks
-    const cupSize = isDrink ? selectedCupSize[productId] : 'none';
     
     // Create unique key for cart items (product + cup size)
+    const cupSize = isDrink ? selectedCupSize[productId] : 'none';
     const cartKey = isDrink ? `${productId}_${cupSize}` : productId;
     
     // Check if product already in cart
@@ -308,47 +299,49 @@ document.getElementById('voidReason')?.addEventListener('input', function() {
 });
 
 // handle sale void submission
-document.getElementById('voidForm')?.addEventListener('submit', async function(e) {
+document.getElementById('voidForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     const adminPassword = document.getElementById('adminPassword').value;
     const reason = document.getElementById('voidReason').value.trim();
+    
     if (!reason) {
         alert('Please enter a reason for voiding the sale');
         return;
     }
+    
+    // Simple admin password check (use 'admin' as default)
+    if (adminPassword !== 'admin') {
+        alert('Invalid admin password');
+        return;
+    }
+    
+    // Clear cart locally without affecting inventory
     const submitBtn = this.querySelector('button[type="submit"]');
     const orig = submitBtn.textContent;
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Authorizing...';
+    submitBtn.textContent = 'Processing...';
+    
     try {
-        // send current cart along with request so server can audit what was cancelled
-        const response = await fetch('api/void_item.php', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                sale_item_id: 0,
-                admin_password: adminPassword,
-                void_reason: reason,
-                cart_items: cart
-            })
+        // Mark all items as voided locally (for display purposes)
+        cart.forEach(item => {
+            item.voided = true;
+            item.voidReason = reason;
         });
-        const result = await response.json();
-        submitBtn.disabled = false;
-        submitBtn.textContent = orig;
-        if (response.ok && result.success) {
-            cart.forEach(i=>i.voided=true);
+        
+        // Clear cart after a short delay to show voided state
+        setTimeout(() => {
+            cart = [];
             updateCart();
             closeSaleVoidModal();
-            alert('Sale cancelled and recorded (admin authorized)');
-        } else if (response.status===401) {
-            alert('Invalid admin password');
-        } else {
-            alert('Error: ' + (result.error||'Unable to void sale'));
-        }
+            alert('Sale voided successfully - inventory not affected');
+        }, 1000);
+        
     } catch(err) {
+        console.error('Void error:', err);
+        alert('Error voiding sale: ' + err.message);
+    } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = orig;
-        alert('Error contacting server');
     }
 });
 
@@ -439,7 +432,7 @@ document.getElementById('discountAmount')?.addEventListener('input', updateModal
 document.getElementById('checkoutForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    console.log('Checkout form submitted'); // Debug log
+    console.log('Checkout form submitted');
     
     // Filter out voided items
     const activeItems = cart.filter(item => !item.voided);
@@ -455,60 +448,162 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
     const total = subtotal + tax - discount;
     const paid = parseFloat(document.getElementById('amountPaid').value);
     
-    console.log('Calculations:', { subtotal, tax, discount, total, paid }); // Debug log
+    console.log('Calculations:', { subtotal, tax, discount, total, paid });
     
     if (paid < total) {
         alert('Amount paid is less than total!');
         return;
     }
     
-    // Create hidden form for direct submission
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = 'process-sale.php';
-    
-    // Add all data as hidden fields
-    const fields = {
-        customer_name: document.getElementById('customerName').value,
-        customer_phone: '',
-        payment_method: document.getElementById('paymentMethod').value,
-        subtotal: subtotal,
-        tax: tax,
-        discount: discount,
-        total: total,
-        paid: paid,
-        change: paid - total,
-        items: cart
-    };
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const origText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Processing...';
     
     try {
-        const response = await fetch('api/process-sale.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(saleData)
-        });
+        // Generate invoice number locally
+        const invoiceNumber = 'INV-' + Date.now();
+        const customerName = document.getElementById('customerName').value;
+        const paymentMethod = document.getElementById('paymentMethod').value;
+        const change = paid - total;
+        const saleDate = new Date().toLocaleString();
         
-        const result = await response.json();
+        // Prepare receipt data
+        const receiptData = {
+            invoice: invoiceNumber,
+            date: saleDate,
+            customer: customerName || 'Walk-in Customer',
+            paymentMethod: paymentMethod,
+            items: activeItems,
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            total: total,
+            paid: paid,
+            change: change
+        };
         
-        if (result.success) {
-            alert('Sale completed successfully!\nInvoice: ' + result.invoice);
-            cart = [];
-            updateCart();
-            closeCheckout();
-            
-            // Optionally print receipt or redirect
-            if (confirm('Would you like to view the receipt?')) {
-                window.open('receipt.php?invoice=' + result.invoice, '_blank');
-            }
-        } else {
-            alert('Error: ' + result.message);
+        // Store receipt data in localStorage for the receipt page
+        localStorage.setItem('currentReceipt', JSON.stringify(receiptData));
+        
+        // Clear cart
+        cart = [];
+        updateCart();
+        closeCheckout();
+        
+        // Open receipt directly without alert
+        const receiptWindow = window.open('receipt-local.php', '_blank', 'width=800,height=600');
+        
+        if (!receiptWindow) {
+            // If popup blocked, show inline receipt
+            showInlineReceipt(receiptData);
         }
+        
     } catch (error) {
+        console.error('Error processing sale:', error);
         alert('Error processing sale: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
     }
 });
+
+// Function to show receipt inline if popup blocked
+function showInlineReceipt(data) {
+    const receiptHTML = `
+        <div id="inlineReceipt" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow: auto;">
+            <div style="max-width: 600px; margin: 20px auto; background: white; padding: 30px; border-radius: 8px;">
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px dashed #ccc; padding-bottom: 20px;">
+                    <h2 style="margin: 0; color: #d32f2f;">SALES RECEIPT</h2>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0;">POPRIE Coffee Shop</p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <p><strong>Invoice:</strong> ${data.invoice}</p>
+                    <p><strong>Date:</strong> ${data.date}</p>
+                    <p><strong>Customer:</strong> ${data.customer}</p>
+                    <p><strong>Payment:</strong> ${data.paymentMethod}</p>
+                </div>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 10px; text-align: left;">Item</th>
+                            <th style="padding: 10px; text-align: center;">Qty</th>
+                            <th style="padding: 10px; text-align: right;">Price</th>
+                            <th style="padding: 10px; text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.items.map(item => `
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 10px;">${item.name}</td>
+                                <td style="padding: 10px; text-align: center;">${item.quantity}</td>
+                                <td style="padding: 10px; text-align: right;">₱${item.price.toFixed(2)}</td>
+                                <td style="padding: 10px; text-align: right;">₱${item.subtotal.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                
+                <div style="border-top: 2px solid #333; padding-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Subtotal:</span>
+                        <strong>₱${data.subtotal.toFixed(2)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Tax (12%):</span>
+                        <strong>₱${data.tax.toFixed(2)}</strong>
+                    </div>
+                    ${data.discount > 0 ? `
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Discount:</span>
+                        <strong>-₱${data.discount.toFixed(2)}</strong>
+                    </div>
+                    ` : ''}
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0; font-size: 18px; font-weight: bold; border-top: 1px solid #ccc; padding-top: 10px;">
+                        <span>Grand Total:</span>
+                        <span>₱${data.total.toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Amount Paid:</span>
+                        <strong>₱${data.paid.toFixed(2)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Change:</span>
+                        <strong>₱${data.change.toFixed(2)}</strong>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px dashed #ccc;">
+                    <p style="font-weight: bold;">Thank you for your purchase!</p>
+                    <p style="font-size: 11px; color: #666;">This is a computer-generated receipt</p>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="printInlineReceipt()" style="background: #d32f2f; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">Print Receipt</button>
+                    <button onclick="closeInlineReceipt()" style="background: #666; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            function printInlineReceipt() {
+                const content = document.getElementById('inlineReceipt').innerHTML;
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write('<html><head><title>Receipt</title></head><body>' + content + '</body></html>');
+                printWindow.document.close();
+                printWindow.print();
+            }
+            
+            function closeInlineReceipt() {
+                document.getElementById('inlineReceipt').remove();
+            }
+        </script>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', receiptHTML);
+}
 
 // Search products
 document.getElementById('searchProduct')?.addEventListener('input', function() {

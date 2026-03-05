@@ -38,7 +38,7 @@ $query = "
            ur.full_name AS requester_name
     FROM sale_voids sv
     LEFT JOIN users ua ON sv.voided_by = ua.user_id
-    LEFT JOIN users ur ON sv.requested_by = ur.user_id
+    LEFT JOIN users ur ON sv.voided_by = ur.user_id
     $where
     ORDER BY sv.voided_at DESC
     LIMIT $limit OFFSET $offset
