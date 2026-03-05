@@ -23,8 +23,8 @@ try {
     // Start transaction
     $conn->begin_transaction();
 
-    // Generate invoice number
-    $invoice = 'INV-' . date('YmdHis');
+    // Use invoice number from JavaScript
+    $invoice = $conn->real_escape_string($data['invoice_number'] ?? 'INV-' . date('YmdHis'));
 
     $customer_name = $conn->real_escape_string($data['customer_name'] ?? '');
     $payment_method = $conn->real_escape_string($data['payment_method']);

@@ -685,12 +685,6 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
     <div class="main-content">
         <div class="header">
             <div class="header-left">
-                <!-- Hamburger Menu Button -->
-                <button class="hamburger-menu" onclick="toggleSidebar()">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
                 <h1>Point of Sale</h1>
             </div>
             <div class="header-actions">
@@ -915,6 +909,63 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                         </button>
                         <button type="submit" class="btn btn-danger" style="flex: 1;">
                             Confirm Void
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- INDIVIDUAL ITEM VOID MODAL -->
+<div id="itemVoidModal" class="modal">
+    <div class="modal-content" style="max-width: 450px;">
+        <div class="modal-header">
+            <h2>Void Individual Item</h2>
+            <button class="modal-close" onclick="closeItemVoidModal()">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+            <div style="margin-bottom: 16px;">
+                <p style="color: #666; font-size: 13px; margin: 0 0 16px 0;">
+                    This action requires admin authorization. The item will be marked as voided.
+                </p>
+                
+                <div style="margin-bottom: 16px; padding: 12px; background: #fff3e0; border: 1px solid #ff9800; border-radius: 4px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 4px; color: #333;">Item to Void</label>
+                    <div id="itemVoidItemName" style="font-weight: 500; color: #495057; margin-bottom: 4px;"></div>
+                    <div id="itemVoidItemPrice" style="font-size: 14px; color: #d32f2f; font-weight: 600;"></div>
+                </div>
+                
+                <form id="itemVoidForm">
+                    <div class="form-group">
+                        <label style="font-weight: 600; display: block; margin-bottom: 8px; color: #333;">
+                            Admin Password
+                        </label>
+                        <input type="password" class="form-control" id="itemVoidPassword"
+                               placeholder="Enter admin password" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-weight: 600; display: block; margin-bottom: 8px; color: #333;">
+                            Void Reason <span style="color: #d32f2f;">*</span>
+                        </label>
+                        <textarea class="form-control" id="itemVoidReason"
+                                  placeholder="Enter reason for voiding this item..." 
+                                  rows="3" required 
+                                  style="resize: vertical; font-family: inherit;"></textarea>
+                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                            <span id="itemVoidCharCount">0</span>/500 characters
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 20px;">
+                        <button type="button" class="btn btn-secondary" 
+                                onclick="closeItemVoidModal()" style="flex: 1;">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-danger" style="flex: 1;">
+                            Void Item
                         </button>
                     </div>
                 </form>

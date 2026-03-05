@@ -188,7 +188,7 @@
         
         <div class="no-print">
             <button class="btn btn-print" onclick="window.print()">Print Receipt</button>
-            <button class="btn btn-close" onclick="window.close()">Close</button>
+            <button class="btn btn-close" onclick="window.location.href='pos.php'">Back to POS</button>
         </div>
     </div>
     

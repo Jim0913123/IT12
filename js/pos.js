@@ -112,7 +112,7 @@ function addToCart(element) {
     updateCart();
 }
 
-// Update cart display
+// Update cart display with void buttons
 function updateCart() {
     const cartItemsDiv = document.getElementById('cartItems');
     
@@ -120,17 +120,23 @@ function updateCart() {
         cartItemsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">Cart is empty</p>';
     } else {
         cartItemsDiv.innerHTML = cart.map((item, index) => `
-            <div class="cart-item" data-sale-item-id="${item.id || 'temp-' + index}">
+            <div class="cart-item ${item.voided ? 'voided' : ''}" data-sale-item-id="${item.id || 'temp-' + index}">
                 <div class="cart-item-details">
-                    <h4>${item.name}</h4>
+                    <h4>${item.name} ${item.voided ? '<span style="color: #d32f2f; font-size: 11px;">(VOIDED)</span>' : ''}</h4>
                     <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
+                    ${item.voidReason ? `<p style="font-size: 11px; color: #666;">Reason: ${item.voidReason}</p>` : ''}
                 </div>
                 <div class="cart-item-actions">
-                    <strong style="color: var(--primary);">₱${item.subtotal.toFixed(2)}</strong>
-                    <div class="quantity-control">
-                        <button class="quantity-btn" onclick="decreaseQuantity(${index})">-</button>
-                        <span style="font-weight: 600; min-width: 30px; text-align: center;">${item.quantity}</span>
-                        <button class="quantity-btn" onclick="increaseQuantity(${index})">+</button>
+                    <strong style="color: ${item.voided ? '#999' : 'var(--primary)'}; text-decoration: ${item.voided ? 'line-through' : 'none'};">₱${item.subtotal.toFixed(2)}</strong>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        ${!item.voided ? `
+                        <div class="quantity-control">
+                            <button class="quantity-btn" onclick="decreaseQuantity(${index})">-</button>
+                            <span style="font-weight: 600; min-width: 30px; text-align: center;">${item.quantity}</span>
+                            <button class="quantity-btn" onclick="increaseQuantity(${index})">+</button>
+                        </div>
+                        <button class="void-item-btn" onclick="openItemVoidModal(${index})" title="Void Item" style="background: #ff9800; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Void</button>
+                        ` : '<span style="color: #999; font-size: 11px;">Voided</span>'}
                     </div>
                 </div>
             </div>
@@ -199,14 +205,15 @@ function clearCart() {
     }
 }
 
-// Update totals
+// Update totals excluding voided items
 function updateTotals() {
-    console.log('=== UPDATE TOTALS CALLED ==='); // Debug log
-    console.log('Current cart:', cart); // Debug log
-    console.log('Cart length:', cart.length); // Debug log
+    console.log('=== UPDATE TOTALS CALLED ===');
+    console.log('Current cart:', cart);
     
-    if (!cart || cart.length === 0) {
-        console.log('Cart is empty, setting totals to 0'); // Debug log
+    const activeItems = cart.filter(item => !item.voided);
+    console.log('Active items:', activeItems);
+    
+    if (activeItems.length === 0) {
         document.getElementById('subtotal').textContent = '₱0.00';
         document.getElementById('tax').textContent = '₱0.00';
         document.getElementById('discount').textContent = '₱0.00';
@@ -215,18 +222,14 @@ function updateTotals() {
     }
     
     let subtotal = 0;
-    for (let i = 0; i < cart.length; i++) {
-        console.log(`Item ${i}:`, cart[i]); // Debug log
-        console.log(`Item ${i} subtotal:`, cart[i].subtotal); // Debug log
-        subtotal += parseFloat(cart[i].subtotal) || 0;
+    for (let i = 0; i < activeItems.length; i++) {
+        subtotal += parseFloat(activeItems[i].subtotal) || 0;
     }
     
-    console.log('Calculated subtotal:', subtotal); // Debug log
-    
-    const tax = subtotal * 0.12; // 12% tax
+    const tax = subtotal * 0.12;
     const total = subtotal + tax;
     
-    console.log('Final totals:', { subtotal, tax, total }); // Debug log
+    console.log('Final totals:', { subtotal, tax, total });
     
     document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
     document.getElementById('tax').textContent = '₱' + tax.toFixed(2);
@@ -301,7 +304,6 @@ document.getElementById('voidReason')?.addEventListener('input', function() {
 // handle sale void submission
 document.getElementById('voidForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
-    const adminPassword = document.getElementById('adminPassword').value;
     const reason = document.getElementById('voidReason').value.trim();
     
     if (!reason) {
@@ -309,7 +311,8 @@ document.getElementById('voidForm')?.addEventListener('submit', function(e) {
         return;
     }
     
-    // Simple admin password check (use 'admin' as default)
+    // Simple admin password check - case insensitive and trimmed
+    const adminPassword = document.getElementById('adminPassword').value.trim().toLowerCase();
     if (adminPassword !== 'admin') {
         alert('Invalid admin password');
         return;
@@ -328,6 +331,47 @@ document.getElementById('voidForm')?.addEventListener('submit', function(e) {
             item.voidReason = reason;
         });
         
+        // Calculate total of voided items
+        const totalVoided = cart.reduce((sum, item) => sum + item.subtotal, 0);
+        
+        // Save void to database via form POST
+        const voidForm = document.createElement('form');
+        voidForm.method = 'POST';
+        voidForm.action = 'save-void.php';
+        voidForm.style.display = 'none';
+        
+        const voidData = {
+            void_type: 'entire_sale',
+            item_name: 'Entire Sale (' + cart.length + ' items)',
+            item_price: 0,
+            quantity: cart.length,
+            subtotal: totalVoided,
+            reason: reason,
+            cart_items: JSON.stringify(cart.map(item => ({
+                id: item.id,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                subtotal: item.subtotal
+            })))
+        };
+        
+        for (const [key, value] of Object.entries(voidData)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            voidForm.appendChild(input);
+        }
+        
+        document.body.appendChild(voidForm);
+        
+        // Submit form - page will redirect, no need to remove form
+        voidForm.submit();
+        
+        // Record void for local reporting
+        recordVoid('entire_sale', null, reason, cart);
+        
         // Clear cart after a short delay to show voided state
         setTimeout(() => {
             cart = [];
@@ -344,6 +388,210 @@ document.getElementById('voidForm')?.addEventListener('submit', function(e) {
         submitBtn.textContent = orig;
     }
 });
+
+// INDIVIDUAL ITEM VOID FUNCTIONS
+let currentVoidItemIndex = null;
+
+function openItemVoidModal(index) {
+    currentVoidItemIndex = index;
+    const item = cart[index];
+    
+    // Set item name in modal using unique IDs
+    document.getElementById('itemVoidItemName').textContent = item.name;
+    document.getElementById('itemVoidItemPrice').textContent = '₱' + item.subtotal.toFixed(2);
+    
+    // Reset form
+    document.getElementById('itemVoidPassword').value = '';
+    document.getElementById('itemVoidReason').value = '';
+    document.getElementById('itemVoidCharCount').textContent = '0';
+    
+    // Show modal
+    document.getElementById('itemVoidModal').classList.add('active');
+    setTimeout(() => document.getElementById('itemVoidPassword').focus(), 100);
+}
+
+function closeItemVoidModal() {
+    document.getElementById('itemVoidModal').classList.remove('active');
+    document.getElementById('itemVoidForm').reset();
+    currentVoidItemIndex = null;
+}
+
+// Item void form submission
+document.getElementById('itemVoidForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (currentVoidItemIndex === null) return;
+    
+    const reason = document.getElementById('itemVoidReason').value.trim();
+    
+    if (!reason) {
+        alert('Please enter a reason for voiding this item');
+        return;
+    }
+    
+    // Admin password check - case insensitive and trimmed
+    const adminPassword = document.getElementById('itemVoidPassword').value.trim().toLowerCase();
+    if (adminPassword !== 'admin') {
+        alert('Invalid admin password');
+        return;
+    }
+    
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const orig = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Processing...';
+    
+    try {
+        const item = cart[currentVoidItemIndex];
+        
+        // Mark item as voided
+        item.voided = true;
+        item.voidReason = reason;
+        item.voidedAt = new Date().toISOString();
+        item.voidedBy = 'Admin';
+        
+        // Save void to database via form POST
+        const voidForm = document.createElement('form');
+        voidForm.method = 'POST';
+        voidForm.action = 'save-void.php';
+        voidForm.style.display = 'none';
+        
+        const voidData = {
+            void_type: 'individual_item',
+            item_name: item.name,
+            item_price: item.price,
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+            reason: reason,
+            cart_items: JSON.stringify([{
+                id: item.id,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                subtotal: item.subtotal
+            }])
+        };
+        
+        for (const [key, value] of Object.entries(voidData)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            voidForm.appendChild(input);
+        }
+        
+        document.body.appendChild(voidForm);
+        
+        // Submit form - page will redirect, no need to remove form
+        voidForm.submit();
+        
+        // Record void for local reporting
+        recordVoid('individual_item', item.name, reason, [item]);
+        
+        updateCart();
+        closeItemVoidModal();
+        
+        alert(`Item "${item.name}" voided successfully`);
+        
+    } catch(err) {
+        console.error('Item void error:', err);
+        alert('Error voiding item: ' + err.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = orig;
+    }
+});
+
+// Character counter for item void reason
+document.getElementById('itemVoidReason')?.addEventListener('input', function() {
+    const cnt = this.value.length;
+    document.getElementById('itemVoidCharCount').textContent = cnt;
+    if (cnt > 500) {
+        this.value = this.value.substring(0, 500);
+        document.getElementById('itemVoidCharCount').textContent = '500';
+    }
+});
+
+// Record void for reporting
+function recordVoid(type, itemName, reason, items) {
+    const voidRecord = {
+        id: 'VOID-' + Date.now(),
+        type: type,
+        itemName: itemName,
+        reason: reason,
+        items: items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+        totalAmount: items.reduce((sum, item) => sum + item.subtotal, 0),
+        timestamp: new Date().toISOString(),
+        cashier: 'Current User'
+    };
+    
+    // Get existing voids
+    let voids = JSON.parse(localStorage.getItem('voidHistory') || '[]');
+    voids.unshift(voidRecord);
+    
+    // Keep only last 100 voids
+    if (voids.length > 100) {
+        voids = voids.slice(0, 100);
+    }
+    
+    localStorage.setItem('voidHistory', JSON.stringify(voids));
+    console.log('Void recorded:', voidRecord);
+}
+
+// View void report
+function viewVoidReport() {
+    const voids = JSON.parse(localStorage.getItem('voidHistory') || '[]');
+    
+    if (voids.length === 0) {
+        alert('No voids recorded');
+        return;
+    }
+    
+    let reportHTML = `
+        <div id="voidReport" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow: auto;">
+            <div style="max-width: 800px; margin: 20px auto; background: white; padding: 30px; border-radius: 8px; max-height: 90vh; overflow: auto;">
+                <h2 style="margin-bottom: 20px; color: #d32f2f;">Void Report</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 10px; text-align: left;">Date/Time</th>
+                            <th style="padding: 10px; text-align: left;">Type</th>
+                            <th style="padding: 10px; text-align: left;">Item/Sale</th>
+                            <th style="padding: 10px; text-align: right;">Amount</th>
+                            <th style="padding: 10px; text-align: left;">Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+    
+    voids.forEach(voidRec => {
+        const date = new Date(voidRec.timestamp).toLocaleString();
+        const type = voidRec.type === 'entire_sale' ? 'Entire Sale' : 'Individual Item';
+        const item = voidRec.itemName || (voidRec.items.length > 1 ? 'Multiple Items' : voidRec.items[0]?.name);
+        
+        reportHTML += `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 10px;">${date}</td>
+                <td style="padding: 10px;">${type}</td>
+                <td style="padding: 10px;">${item}</td>
+                <td style="padding: 10px; text-align: right;">₱${voidRec.totalAmount.toFixed(2)}</td>
+                <td style="padding: 10px; font-size: 12px;">${voidRec.reason}</td>
+            </tr>
+        `;
+    });
+    
+    reportHTML += `
+                    </tbody>
+                </table>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="document.getElementById('voidReport').remove()" style="background: #666; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', reportHTML);
+}
 
 // Display cart items in modal
 function displayModalCart() {
@@ -468,7 +716,44 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
         const change = paid - total;
         const saleDate = new Date().toLocaleString();
         
-        // Prepare receipt data
+        // Create hidden form for submission
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'save-sale.php';
+        form.style.display = 'none';
+        
+        // Add form fields
+        const fields = {
+            invoice_number: invoiceNumber,
+            customer_name: customerName,
+            payment_method: paymentMethod,
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            total: total,
+            paid: paid,
+            change_amount: change,
+            items: JSON.stringify(activeItems.map(item => ({
+                product_id: item.id,
+                product_name: item.name,
+                quantity: item.quantity,
+                unit_price: item.price,
+                subtotal: item.subtotal,
+                cup_size: item.cupSize || null
+            })))
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        
+        // Store receipt data for display
         const receiptData = {
             invoice: invoiceNumber,
             date: saleDate,
@@ -482,22 +767,15 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
             paid: paid,
             change: change
         };
-        
-        // Store receipt data in localStorage for the receipt page
         localStorage.setItem('currentReceipt', JSON.stringify(receiptData));
         
-        // Clear cart
+        // Clear cart and submit form
         cart = [];
         updateCart();
         closeCheckout();
         
-        // Open receipt directly without alert
-        const receiptWindow = window.open('receipt-local.php', '_blank', 'width=800,height=600');
-        
-        if (!receiptWindow) {
-            // If popup blocked, show inline receipt
-            showInlineReceipt(receiptData);
-        }
+        // Submit form to save sale
+        form.submit();
         
     } catch (error) {
         console.error('Error processing sale:', error);
