@@ -28,8 +28,16 @@ if (!empty($_GET['date'])) {
 
 // total count
 $countQuery = "SELECT COUNT(*) as count FROM sale_voids sv $where";
-$total = $conn->query($countQuery)->fetch_assoc()['count'];
+$total_result = $conn->query($countQuery);
+if (!$total_result) {
+    die("Query error: " . $conn->error);
+}
+$total = $total_result->fetch_assoc()['count'];
 $total_pages = ceil($total / $limit);
+
+// Debug output
+error_log("Voids count: $total");
+error_log("Query: $countQuery");
 
 // main query - query from dedicated sale_voids audit table
 $query = "
@@ -45,6 +53,26 @@ $query = "
 ";
 
 $voids = $conn->query($query);
+
+// Debug output
+error_log("Query executed: $query");
+error_log("Query result: " . ($voids ? $voids->num_rows . " rows" : "false"));
+
+// Add debug display at top of page
+$debug_info = "";
+if ($voids) {
+    $debug_info = "<div style='background: #f0f8ff; padding: 10px; margin: 10px; border: 1px solid #0066cc;'>";
+    $debug_info .= "<strong>DEBUG INFO:</strong><br>";
+    $debug_info .= "Total voids: " . $total . "<br>";
+    $debug_info .= "Query result rows: " . $voids->num_rows . "<br>";
+    $debug_info .= "Query: " . htmlspecialchars($query) . "<br>";
+    $debug_info .= "</div>";
+} else {
+    $debug_info = "<div style='background: #ffe6e6; padding: 10px; margin: 10px; border: 1px solid #cc0000;'>";
+    $debug_info .= "<strong>ERROR:</strong> Query failed: " . $conn->error . "<br>";
+    $debug_info .= "Query: " . htmlspecialchars($query) . "<br>";
+    $debug_info .= "</div>";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -144,6 +172,7 @@ $voids = $conn->query($query);
                     </div>
                 </div>
                 <div class="card-body">
+                    <?php echo $debug_info; ?>
                     <div class="table-responsive">
                         <table>
                             <thead>

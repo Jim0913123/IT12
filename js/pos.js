@@ -135,7 +135,6 @@ function updateCart() {
                             <span style="font-weight: 600; min-width: 30px; text-align: center;">${item.quantity}</span>
                             <button class="quantity-btn" onclick="increaseQuantity(${index})">+</button>
                         </div>
-                        <button class="void-item-btn" onclick="openItemVoidModal(${index})" title="Void Item" style="background: #ff9800; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Void</button>
                         ` : '<span style="color: #999; font-size: 11px;">Voided</span>'}
                     </div>
                 </div>
@@ -334,13 +333,8 @@ document.getElementById('voidForm')?.addEventListener('submit', function(e) {
         // Calculate total of voided items
         const totalVoided = cart.reduce((sum, item) => sum + item.subtotal, 0);
         
-        // Save void to database via form POST
-        const voidForm = document.createElement('form');
-        voidForm.method = 'POST';
-        voidForm.action = 'save-void.php';
-        voidForm.style.display = 'none';
-        
-        const voidData = {
+        // Save void to database via fetch API
+        const voidData = new URLSearchParams({
             void_type: 'entire_sale',
             item_name: 'Entire Sale (' + cart.length + ' items)',
             item_price: 0,
@@ -354,31 +348,30 @@ document.getElementById('voidForm')?.addEventListener('submit', function(e) {
                 price: item.price,
                 subtotal: item.subtotal
             })))
-        };
+        });
         
-        for (const [key, value] of Object.entries(voidData)) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = value;
-            voidForm.appendChild(input);
-        }
-        
-        document.body.appendChild(voidForm);
-        
-        // Submit form - page will redirect, no need to remove form
-        voidForm.submit();
-        
-        // Record void for local reporting
-        recordVoid('entire_sale', null, reason, cart);
-        
-        // Clear cart after a short delay to show voided state
-        setTimeout(() => {
+        fetch('save-void.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: voidData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            // Void saved successfully
+            recordVoid('entire_sale', null, reason, cart);
             cart = [];
             updateCart();
             closeSaleVoidModal();
             alert('Sale voided successfully - inventory not affected');
-        }, 1000);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error saving void: ' + error.message);
+        });
         
     } catch(err) {
         console.error('Void error:', err);
@@ -389,25 +382,79 @@ document.getElementById('voidForm')?.addEventListener('submit', function(e) {
     }
 });
 
-// INDIVIDUAL ITEM VOID FUNCTIONS
+// Smart void function - handles individual item or entire sale
+function smartVoid() {
+    if (cart.length === 0) {
+        alert('Cart is empty!');
+        return;
+    }
+    
+    // Count non-voided items
+    const activeItems = cart.filter(item => !item.voided);
+    
+    if (activeItems.length === 0) {
+        alert('All items are already voided!');
+        return;
+    }
+    
+    if (activeItems.length === 1) {
+        // Only one active item - void it individually
+        const activeIndex = cart.findIndex(item => !item.voided);
+        openItemVoidModal(activeIndex);
+    } else {
+        // Multiple items - ask what to void
+        const choice = confirm(`There are ${activeItems.length} items in cart.\n\nClick OK to void the entire sale.\nClick CANCEL to void individual items.`);
+        if (choice) {
+            // Void entire sale
+            openSaleVoidModal();
+        } else {
+            // Let user choose which item to void
+            alert('Please remove individual items from cart using the quantity controls, then void the remaining sale.');
+        }
+    }
+}
 let currentVoidItemIndex = null;
 
 function openItemVoidModal(index) {
+    console.log('Opening void modal for item index:', index);
+    console.log('Cart:', cart);
+    
     currentVoidItemIndex = index;
     const item = cart[index];
     
+    // Check if modal elements exist
+    const modal = document.getElementById('itemVoidModal');
+    const itemName = document.getElementById('itemVoidItemName');
+    const itemPrice = document.getElementById('itemVoidItemPrice');
+    const password = document.getElementById('itemVoidPassword');
+    const reason = document.getElementById('itemVoidReason');
+    
+    console.log('Modal elements found:', {
+        modal: !!modal,
+        itemName: !!itemName,
+        itemPrice: !!itemPrice,
+        password: !!password,
+        reason: !!reason
+    });
+    
+    if (!modal || !itemName || !itemPrice || !password || !reason) {
+        console.error('Void modal elements not found!');
+        alert('Error: Void modal elements not found');
+        return;
+    }
+    
     // Set item name in modal using unique IDs
-    document.getElementById('itemVoidItemName').textContent = item.name;
-    document.getElementById('itemVoidItemPrice').textContent = '₱' + item.subtotal.toFixed(2);
+    itemName.textContent = item.name;
+    itemPrice.textContent = '₱' + item.subtotal.toFixed(2);
     
     // Reset form
-    document.getElementById('itemVoidPassword').value = '';
-    document.getElementById('itemVoidReason').value = '';
+    password.value = '';
+    reason.value = '';
     document.getElementById('itemVoidCharCount').textContent = '0';
     
     // Show modal
-    document.getElementById('itemVoidModal').classList.add('active');
-    setTimeout(() => document.getElementById('itemVoidPassword').focus(), 100);
+    modal.classList.add('active');
+    setTimeout(() => password.focus(), 100);
 }
 
 function closeItemVoidModal() {
@@ -450,13 +497,8 @@ document.getElementById('itemVoidForm')?.addEventListener('submit', function(e) 
         item.voidedAt = new Date().toISOString();
         item.voidedBy = 'Admin';
         
-        // Save void to database via form POST
-        const voidForm = document.createElement('form');
-        voidForm.method = 'POST';
-        voidForm.action = 'save-void.php';
-        voidForm.style.display = 'none';
-        
-        const voidData = {
+        // Save void to database via fetch API
+        const voidData = new URLSearchParams({
             void_type: 'individual_item',
             item_name: item.name,
             item_price: item.price,
@@ -470,23 +512,37 @@ document.getElementById('itemVoidForm')?.addEventListener('submit', function(e) 
                 price: item.price,
                 subtotal: item.subtotal
             }])
-        };
+        });
         
-        for (const [key, value] of Object.entries(voidData)) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = value;
-            voidForm.appendChild(input);
-        }
-        
-        document.body.appendChild(voidForm);
-        
-        // Submit form - page will redirect to save-void.php
-        voidForm.submit();
-        
-        // Don't do anything else - page is navigating away
-        return;
+        fetch('save-void.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: voidData
+        })
+        .then(response => {
+            console.log('Fetch response status:', response.status);
+            console.log('Fetch response ok:', response.ok);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Fetch response data:', data);
+            if (data.success) {
+                // Void saved successfully
+                recordVoid('individual_item', item.name, reason, [item]);
+                updateCart();
+                closeItemVoidModal();
+                alert(`Item "${item.name}" voided successfully`);
+            } else {
+                console.error('Void save failed:', data.message);
+                alert('Error saving void: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            alert('Error saving void: ' + error.message);
+        });
         
     } catch(err) {
         console.error('Item void error:', err);

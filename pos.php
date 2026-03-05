@@ -766,7 +766,7 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                 
                 <div style="margin-top: 16px; display: flex; gap: 8px;">
                     <button class="btn btn-danger" onclick="clearCart()" style="flex:1;">Clear</button>
-                    <button class="btn-void" onclick="openSaleVoidModal()" style="flex:1; padding: 12px 16px; font-size: 13px;">Void Sale</button>
+                    <button class="btn-void" onclick="smartVoid()" style="flex:1; padding: 12px 16px; font-size: 13px;">Void Sale</button>
                     <button class="btn btn-success" onclick="openCheckout()" style="flex:2;">Complete Sale</button>
                 </div>
             </div>
