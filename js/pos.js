@@ -1,27 +1,10 @@
 // Cart data
 let cart = [];
-let selectedCupSize = {}; // Stores { productId: { cupId, cupSize, price } }
+let selectedCupSize = {};
 
-// POS JavaScript loaded
+// Test if JavaScript is loading
 console.log('POS JavaScript loaded successfully!');
-
-// Security: Get CSRF token from config
-function getCSRFToken() {
-    return window.POS_CONFIG?.csrfToken || '';
-}
-
-// Helper function to make secure fetch requests
-async function secureFetch(url, options = {}) {
-    const csrfToken = getCSRFToken();
-    
-    // Add CSRF token to headers
-    options.headers = {
-        ...options.headers,
-        'X-CSRF-TOKEN': csrfToken
-    };
-    
-    return fetch(url, options);
-}
+alert('JavaScript is working!');
 
 // Select cup size for drink
 function selectCupSize(button, event) {
@@ -91,45 +74,32 @@ function handleProductClick(element, event) {
 
 // Add product to cart
 function addToCart(element) {
-    console.log('Adding product:', element.dataset); // Debug log
+    console.log('addToCart called'); // Test if function is being called
     
     const productId = element.dataset.id;
     const productCode = element.dataset.code;
     const productName = element.dataset.name;
     const productStock = parseInt(element.dataset.stock);
     const isDrink = element.dataset.isDrink === 'true';
-    const hasCupSizes = element.dataset.cupSizes && element.dataset.cupSizes !== '[]';
     
-    // Get price and cup details
-    let productPrice, cupSize, cupId;
+    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, isDrink }); // Debug log
     
-    if (isDrink && hasCupSizes && selectedCupSize[productId]) {
-        // Use selected cup size price
-        productPrice = selectedCupSize[productId].price;
-        cupSize = selectedCupSize[productId].cupSize;
-        cupId = selectedCupSize[productId].cupId;
-    } else {
-        // Use base product price
-        productPrice = parseFloat(element.dataset.price);
-        cupSize = 'none';
-        cupId = null;
-    }
-    
-    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, isDrink, cupSize, cupId }); // Debug log
-    
-    // Check if it's a drink with cup sizes and cup size is selected
-    if (isDrink && hasCupSizes && !selectedCupSize[productId]) {
-        alert('Please select a cup size for this drink!');
+    // Check if it's a drink and cup size is selected
+    if (isDrink && !selectedCupSize[productId]) {
+        alert('Please select a cup size (12oz or 16oz) for this drink!');
         return;
     }
     
-    if (productStock <= 0 && !isDrink) {
+    if (productStock <= 0) {
         alert('Product is out of stock!');
         return;
     }
     
+    // Get cup size for drinks
+    const cupSize = isDrink ? selectedCupSize[productId] : 'none';
+    
     // Create unique key for cart items (product + cup size)
-    const cartKey = (isDrink && cupId) ? `${productId}_${cupId}` : productId;
+    const cartKey = isDrink ? `${productId}_${cupSize}` : productId;
     
     // Check if product already in cart
     const existingItem = cart.find(item => item.cartKey === cartKey);
@@ -167,29 +137,30 @@ function addToCart(element) {
     updateCart();
 }
 
-// Update cart display
+// Update cart display with void buttons
 function updateCart() {
     const cartItemsDiv = document.getElementById('cartItems');
     
     if (cart.length === 0) {
         cartItemsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">Cart is empty</p>';
     } else {
-        cartItemsDiv.innerHTML = cart.map((item, index) => {
-            const displayName = item.cupSize && item.cupSize !== 'none' 
-                ? `${item.name} (${item.cupSize})` 
-                : item.name;
-            return `
+        cartItemsDiv.innerHTML = cart.map((item, index) => `
             <div class="cart-item" data-sale-item-id="${item.id || 'temp-' + index}">
                 <div class="cart-item-details">
-                    <h4>${displayName}</h4>
+                    <h4>${item.name}</h4>
                     <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
+                    ${item.voidReason ? `<p style="font-size: 11px; color: #666;">Reason: ${item.voidReason}</p>` : ''}
                 </div>
                 <div class="cart-item-actions">
-                    <strong style="color: var(--primary);">₱${item.subtotal.toFixed(2)}</strong>
-                    <div class="quantity-control">
-                        <button class="quantity-btn" onclick="decreaseQuantity(${index})">-</button>
-                        <span style="font-weight: 600; min-width: 30px; text-align: center;">${item.quantity}</span>
-                        <button class="quantity-btn" onclick="increaseQuantity(${index})">+</button>
+                    <strong style="color: ${item.voided ? '#999' : 'var(--primary)'}; text-decoration: ${item.voided ? 'line-through' : 'none'};">₱${item.subtotal.toFixed(2)}</strong>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        ${!item.voided ? `
+                        <div class="quantity-control">
+                            <button class="quantity-btn" onclick="decreaseQuantity(${index})">-</button>
+                            <span style="font-weight: 600; min-width: 30px; text-align: center;">${item.quantity}</span>
+                            <button class="quantity-btn" onclick="increaseQuantity(${index})">+</button>
+                        </div>
+                        ` : '<span style="color: #999; font-size: 11px;">Voided</span>'}
                     </div>
                 </div>
             </div>
@@ -258,14 +229,15 @@ function clearCart() {
     }
 }
 
-// Update totals
+// Update totals excluding voided items
 function updateTotals() {
-    console.log('=== UPDATE TOTALS CALLED ==='); // Debug log
-    console.log('Current cart:', cart); // Debug log
-    console.log('Cart length:', cart.length); // Debug log
+    console.log('=== UPDATE TOTALS CALLED ===');
+    console.log('Current cart:', cart);
     
-    if (!cart || cart.length === 0) {
-        console.log('Cart is empty, setting totals to 0'); // Debug log
+    const activeItems = cart.filter(item => !item.voided);
+    console.log('Active items:', activeItems);
+    
+    if (activeItems.length === 0) {
         document.getElementById('subtotal').textContent = '₱0.00';
         document.getElementById('tax').textContent = '₱0.00';
         document.getElementById('discount').textContent = '₱0.00';
@@ -274,18 +246,14 @@ function updateTotals() {
     }
     
     let subtotal = 0;
-    for (let i = 0; i < cart.length; i++) {
-        console.log(`Item ${i}:`, cart[i]); // Debug log
-        console.log(`Item ${i} subtotal:`, cart[i].subtotal); // Debug log
-        subtotal += parseFloat(cart[i].subtotal) || 0;
+    for (let i = 0; i < activeItems.length; i++) {
+        subtotal += parseFloat(activeItems[i].subtotal) || 0;
     }
     
-    console.log('Calculated subtotal:', subtotal); // Debug log
-    
-    const tax = subtotal * 0.12; // 12% tax
+    const tax = subtotal * 0.12;
     const total = subtotal + tax;
     
-    console.log('Final totals:', { subtotal, tax, total }); // Debug log
+    console.log('Final totals:', { subtotal, tax, total });
     
     document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
     document.getElementById('tax').textContent = '₱' + tax.toFixed(2);
@@ -358,64 +326,51 @@ document.getElementById('voidReason')?.addEventListener('input', function() {
 });
 
 // handle sale void submission
-document.getElementById('voidForm')?.addEventListener('submit', async function(e) {
+document.getElementById('voidForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
-    const adminPassword = document.getElementById('adminPassword').value;
     const reason = document.getElementById('voidReason').value.trim();
+    
     if (!reason) {
         alert('Please enter a reason for voiding the sale');
-        return;
-    }
-    if (cart.length === 0) {
-        alert('Cart is empty - nothing to void');
-        closeSaleVoidModal();
         return;
     }
     const submitBtn = this.querySelector('button[type="submit"]');
     const orig = submitBtn.textContent;
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Authorizing...';
+    submitBtn.textContent = 'Processing...';
+    
     try {
-        // send cart void request to updated API with CSRF protection
-        const response = await secureFetch('api/void_item.php', {
+        // send current cart along with request so server can audit what was cancelled
+        const response = await fetch('api/void_item.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                void_type: 'cart',
+                sale_item_id: 0,
                 admin_password: adminPassword,
                 void_reason: reason,
-                cart_items: cart.map(item => ({
-                    product_id: item.id,
-                    product_name: item.name,
-                    quantity: item.quantity,
-                    price: item.price,
-                    subtotal: item.subtotal,
-                    cup_size: item.cupSize || 'none'
-                }))
+                cart_items: cart
             })
         });
         const result = await response.json();
         submitBtn.disabled = false;
         submitBtn.textContent = orig;
         if (response.ok && result.success) {
-            // Clear cart after successful void
-            cart = [];
-            selectedCupSize = {};
+            cart.forEach(i=>i.voided=true);
             updateCart();
             closeSaleVoidModal();
-            alert('Cart voided and recorded (admin authorized)');
-        } else if (response.status === 401) {
+            alert('Sale cancelled and recorded (admin authorized)');
+        } else if (response.status===401) {
             alert('Invalid admin password');
-        } else if (response.status === 429) {
-            alert('Too many failed attempts. Please wait before trying again.');
         } else {
-            alert('Error: ' + (result.error || 'Unable to void cart'));
+            alert('Error: ' + (result.error||'Unable to void sale'));
         }
     } catch(err) {
+        console.error('Item void error:', err);
+        alert('Error voiding item: ' + err.message);
+    } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = orig;
         alert('Error contacting server');
-        console.error('Void error:', err);
     }
 });
 
@@ -506,7 +461,7 @@ document.getElementById('discountAmount')?.addEventListener('input', updateModal
 document.getElementById('checkoutForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    console.log('Checkout form submitted'); // Debug log
+    console.log('Checkout form submitted');
     
     // Filter out voided items
     const activeItems = cart.filter(item => !item.voided);
@@ -522,38 +477,34 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
     const total = subtotal + tax - discount;
     const paid = parseFloat(document.getElementById('amountPaid').value);
     
-    console.log('Calculations:', { subtotal, tax, discount, total, paid }); // Debug log
+    console.log('Calculations:', { subtotal, tax, discount, total, paid });
     
     if (paid < total) {
         alert('Amount paid is less than total!');
         return;
     }
     
-    // Prepare sale data for API
-    const saleData = {
+    // Create hidden form for direct submission
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'process-sale.php';
+    
+    // Add all data as hidden fields
+    const fields = {
         customer_name: document.getElementById('customerName').value,
+        customer_phone: '',
         payment_method: document.getElementById('paymentMethod').value,
         subtotal: subtotal,
         tax: tax,
         discount: discount,
         total: total,
-        amount_paid: paid,
+        paid: paid,
         change: paid - total,
-        items: activeItems.map(item => ({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            subtotal: item.subtotal,
-            cup_size: item.cupSize || 'none',
-            cup_id: item.cupId || null
-        }))
+        items: cart
     };
     
-    console.log('Sale data being sent:', saleData); // Debug log
-    
     try {
-        const response = await secureFetch('api/process-sale.php', {
+        const response = await fetch('api/process-sale.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -577,9 +528,110 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
             alert('Error: ' + result.message);
         }
     } catch (error) {
+        console.error('Error processing sale:', error);
         alert('Error processing sale: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
     }
 });
+
+// Function to show receipt inline if popup blocked
+function showInlineReceipt(data) {
+    const receiptHTML = `
+        <div id="inlineReceipt" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow: auto;">
+            <div style="max-width: 600px; margin: 20px auto; background: white; padding: 30px; border-radius: 8px;">
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px dashed #ccc; padding-bottom: 20px;">
+                    <h2 style="margin: 0; color: #d32f2f;">SALES RECEIPT</h2>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0;">POPRIE Coffee Shop</p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <p><strong>Invoice:</strong> ${data.invoice}</p>
+                    <p><strong>Date:</strong> ${data.date}</p>
+                    <p><strong>Customer:</strong> ${data.customer}</p>
+                    <p><strong>Payment:</strong> ${data.paymentMethod}</p>
+                </div>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="background: #f5f5f5;">
+                            <th style="padding: 10px; text-align: left;">Item</th>
+                            <th style="padding: 10px; text-align: center;">Qty</th>
+                            <th style="padding: 10px; text-align: right;">Price</th>
+                            <th style="padding: 10px; text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.items.map(item => `
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 10px;">${item.name}</td>
+                                <td style="padding: 10px; text-align: center;">${item.quantity}</td>
+                                <td style="padding: 10px; text-align: right;">₱${item.price.toFixed(2)}</td>
+                                <td style="padding: 10px; text-align: right;">₱${item.subtotal.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                
+                <div style="border-top: 2px solid #333; padding-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Subtotal:</span>
+                        <strong>₱${data.subtotal.toFixed(2)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Tax (12%):</span>
+                        <strong>₱${data.tax.toFixed(2)}</strong>
+                    </div>
+                    ${data.discount > 0 ? `
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Discount:</span>
+                        <strong>-₱${data.discount.toFixed(2)}</strong>
+                    </div>
+                    ` : ''}
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0; font-size: 18px; font-weight: bold; border-top: 1px solid #ccc; padding-top: 10px;">
+                        <span>Grand Total:</span>
+                        <span>₱${data.total.toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Amount Paid:</span>
+                        <strong>₱${data.paid.toFixed(2)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>Change:</span>
+                        <strong>₱${data.change.toFixed(2)}</strong>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px dashed #ccc;">
+                    <p style="font-weight: bold;">Thank you for your purchase!</p>
+                    <p style="font-size: 11px; color: #666;">This is a computer-generated receipt</p>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="printInlineReceipt()" style="background: #d32f2f; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">Print Receipt</button>
+                    <button onclick="closeInlineReceipt()" style="background: #666; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            function printInlineReceipt() {
+                const content = document.getElementById('inlineReceipt').innerHTML;
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write('<html><head><title>Receipt</title></head><body>' + content + '</body></html>');
+                printWindow.document.close();
+                printWindow.print();
+            }
+            
+            function closeInlineReceipt() {
+                document.getElementById('inlineReceipt').remove();
+            }
+        </script>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', receiptHTML);
+}
 
 // Search products
 document.getElementById('searchProduct')?.addEventListener('input', function() {

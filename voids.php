@@ -28,26 +28,35 @@ $viewType = sanitize($_GET['view'] ?? 'items');
 $dateFilter = !empty($_GET['date']) ? sanitize($_GET['date']) : null;
 $search = !empty($_GET['search']) ? sanitize($_GET['search']) : null;
 
-// Build filter params for pagination links
-$filterParams = '';
-if ($viewType !== 'items') $filterParams .= '&view=' . urlencode($viewType);
-if ($dateFilter) $filterParams .= '&date=' . urlencode($dateFilter);
-if ($search) $filterParams .= '&search=' . urlencode($search);
+// filter by date
+$where = "";
+$filter_params = "";
 
-// Get statistics
-$stats = getVoidStatistics('today');
-$weekStats = getVoidStatistics('week');
-
-// Get data based on view type
-if ($viewType === 'carts') {
-    $voids = getCartVoids($page, $limit, $dateFilter);
-    $total = countCartVoids($dateFilter);
-} else {
-    $voids = getVoidedOrders($page, $limit, $dateFilter, $search);
-    $total = countVoidedOrders($dateFilter, $search);
+if (!empty($_GET['date'])) {
+    $date = $conn->real_escape_string($_GET['date']);
+    $where = "WHERE DATE(sv.voided_at) = '$date'";
+    $filter_params = "&date=" . urlencode($_GET['date']);
 }
 
+// total count
+$countQuery = "SELECT COUNT(*) as count FROM sale_voids sv $where";
+$total = $conn->query($countQuery)->fetch_assoc()['count'];
 $total_pages = ceil($total / $limit);
+
+// main query - query from dedicated sale_voids audit table
+$query = "
+    SELECT sv.*, 
+           ua.full_name AS admin_name,
+           ur.full_name AS requester_name
+    FROM sale_voids sv
+    LEFT JOIN users ua ON sv.voided_by = ua.user_id
+    LEFT JOIN users ur ON sv.requested_by = ur.user_id
+    $where
+    ORDER BY sv.voided_at DESC
+    LIMIT $limit OFFSET $offset
+";
+
+$voids = $conn->query($query);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -280,8 +289,8 @@ $total_pages = ceil($total / $limit);
                             <a href="?view=<?php echo $viewType; ?>" class="btn btn-secondary btn-sm">Clear</a>
                         <?php endif; ?>
                     </div>
-
-                    <!-- Data Table -->
+                </div>
+                <div class="card-body">
                     <div class="table-responsive">
                         <table>
                             <thead>

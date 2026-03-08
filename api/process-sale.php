@@ -68,7 +68,7 @@ try {
     $pdo->beginTransaction();
 
     // Generate invoice number
-    $invoice = 'INV-' . date('YmdHis') . '-' . str_pad(mt_rand(0, 999), 3, '0', STR_PAD_LEFT);
+    $invoice = 'INV-' . date('YmdHis');
 
     $customer_name = sanitize($data['customer_name'] ?? '');
     $payment_method = sanitize($data['payment_method'] ?? 'cash');
