@@ -1,10 +1,27 @@
 // Cart data
 let cart = [];
-let selectedCupSize = {};
+let selectedCupSize = {}; // Stores { productId: { cupId, cupSize, price } }
 
-// Test if JavaScript is loading
+// POS JavaScript loaded
 console.log('POS JavaScript loaded successfully!');
-alert('JavaScript is working!');
+
+// Security: Get CSRF token from config
+function getCSRFToken() {
+    return window.POS_CONFIG?.csrfToken || '';
+}
+
+// Helper function to make secure fetch requests
+async function secureFetch(url, options = {}) {
+    const csrfToken = getCSRFToken();
+    
+    // Add CSRF token to headers
+    options.headers = {
+        ...options.headers,
+        'X-CSRF-TOKEN': csrfToken
+    };
+    
+    return fetch(url, options);
+}
 
 // Select cup size for drink
 function selectCupSize(button, event) {
@@ -12,7 +29,9 @@ function selectCupSize(button, event) {
     
     const productCard = button.closest('.product-card');
     const productId = productCard.dataset.id;
+    const cupId = parseInt(button.dataset.cupId);
     const cupSize = button.dataset.cupSize;
+    const price = parseFloat(button.dataset.price);
     
     // Clear previous selection for this product
     const cupButtons = productCard.querySelectorAll('.cup-btn');
@@ -21,10 +40,23 @@ function selectCupSize(button, event) {
     // Select current button
     button.classList.add('selected');
     
-    // Store selected cup size
-    selectedCupSize[productId] = cupSize;
+    // Store selected cup size with all details
+    selectedCupSize[productId] = {
+        cupId: cupId,
+        cupSize: cupSize,
+        price: price
+    };
     
-    console.log('Selected cup size:', productId, cupSize);
+    // Update the displayed price on the product card
+    const priceDiv = productCard.querySelector('.price');
+    if (priceDiv) {
+        priceDiv.textContent = '₱' + price.toFixed(2);
+    }
+    
+    // Update the data-price attribute for addToCart
+    productCard.dataset.price = price;
+    
+    console.log('Selected cup size:', productId, selectedCupSize[productId]);
     
     // Automatically add to cart after cup size selection
     setTimeout(() => {
@@ -36,22 +68,23 @@ function selectCupSize(button, event) {
 function handleProductClick(element, event) {
     console.log('Product clicked:', element.dataset);
     const isDrink = element.dataset.isDrink === 'true';
-    console.log('Is drink:', isDrink);
+    const hasCupSizes = element.dataset.cupSizes && element.dataset.cupSizes !== '[]';
+    console.log('Is drink:', isDrink, 'Has cup sizes:', hasCupSizes);
     
-    if (isDrink) {
-        // For all drinks (including Hot Coffee), require cup size selection
+    if (isDrink && hasCupSizes) {
+        // For drinks with cup sizes, require cup size selection
         const productId = element.dataset.id;
         console.log('Product ID:', productId);
         console.log('Selected cup sizes:', selectedCupSize);
         
         if (!selectedCupSize[productId]) {
-            alert('Please select a cup size (12oz or 16oz) for this drink!');
+            alert('Please select a cup size for this drink!');
             return;
         }
         // If cup size is selected, add to cart
         addToCart(element);
     } else {
-        // For non-drinks, add directly to cart
+        // For non-drinks or drinks without cup sizes, add directly to cart
         addToCart(element);
     }
 }
@@ -63,35 +96,47 @@ function addToCart(element) {
     const productId = element.dataset.id;
     const productCode = element.dataset.code;
     const productName = element.dataset.name;
-    const productPrice = parseFloat(element.dataset.price);
     const productStock = parseInt(element.dataset.stock);
     const isDrink = element.dataset.isDrink === 'true';
+    const hasCupSizes = element.dataset.cupSizes && element.dataset.cupSizes !== '[]';
     
-    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, isDrink }); // Debug log
+    // Get price and cup details
+    let productPrice, cupSize, cupId;
     
-    // Check if it's a drink and cup size is selected
-    if (isDrink && !selectedCupSize[productId]) {
-        alert('Please select a cup size (12oz or 16oz) for this drink!');
+    if (isDrink && hasCupSizes && selectedCupSize[productId]) {
+        // Use selected cup size price
+        productPrice = selectedCupSize[productId].price;
+        cupSize = selectedCupSize[productId].cupSize;
+        cupId = selectedCupSize[productId].cupId;
+    } else {
+        // Use base product price
+        productPrice = parseFloat(element.dataset.price);
+        cupSize = 'none';
+        cupId = null;
+    }
+    
+    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, isDrink, cupSize, cupId }); // Debug log
+    
+    // Check if it's a drink with cup sizes and cup size is selected
+    if (isDrink && hasCupSizes && !selectedCupSize[productId]) {
+        alert('Please select a cup size for this drink!');
         return;
     }
     
-    if (productStock <= 0) {
+    if (productStock <= 0 && !isDrink) {
         alert('Product is out of stock!');
         return;
     }
     
-    // Get cup size for drinks
-    const cupSize = isDrink ? selectedCupSize[productId] : 'none';
-    
     // Create unique key for cart items (product + cup size)
-    const cartKey = isDrink ? `${productId}_${cupSize}` : productId;
+    const cartKey = (isDrink && cupId) ? `${productId}_${cupId}` : productId;
     
     // Check if product already in cart
     const existingItem = cart.find(item => item.cartKey === cartKey);
     
     if (existingItem) {
         console.log('Product already in cart, updating quantity'); // Debug log
-        if (existingItem.quantity < productStock) {
+        if (existingItem.quantity < productStock || isDrink) {
             existingItem.quantity++;
             existingItem.subtotal = existingItem.quantity * existingItem.price;
             console.log('Updated existing item:', existingItem); // Debug log
@@ -111,6 +156,7 @@ function addToCart(element) {
             stock: productStock,
             subtotal: productPrice,
             cupSize: cupSize,
+            cupId: cupId,
             isDrink: isDrink
         };
         console.log('New item created:', newItem); // Debug log
@@ -128,10 +174,14 @@ function updateCart() {
     if (cart.length === 0) {
         cartItemsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">Cart is empty</p>';
     } else {
-        cartItemsDiv.innerHTML = cart.map((item, index) => `
+        cartItemsDiv.innerHTML = cart.map((item, index) => {
+            const displayName = item.cupSize && item.cupSize !== 'none' 
+                ? `${item.name} (${item.cupSize})` 
+                : item.name;
+            return `
             <div class="cart-item" data-sale-item-id="${item.id || 'temp-' + index}">
                 <div class="cart-item-details">
-                    <h4>${item.name}</h4>
+                    <h4>${displayName}</h4>
                     <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
                 </div>
                 <div class="cart-item-actions">
@@ -143,7 +193,7 @@ function updateCart() {
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
     
     updateTotals();
@@ -316,39 +366,56 @@ document.getElementById('voidForm')?.addEventListener('submit', async function(e
         alert('Please enter a reason for voiding the sale');
         return;
     }
+    if (cart.length === 0) {
+        alert('Cart is empty - nothing to void');
+        closeSaleVoidModal();
+        return;
+    }
     const submitBtn = this.querySelector('button[type="submit"]');
     const orig = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Authorizing...';
     try {
-        // send current cart along with request so server can audit what was cancelled
-        const response = await fetch('api/void_item.php', {
+        // send cart void request to updated API with CSRF protection
+        const response = await secureFetch('api/void_item.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                sale_item_id: 0,
+                void_type: 'cart',
                 admin_password: adminPassword,
                 void_reason: reason,
-                cart_items: cart
+                cart_items: cart.map(item => ({
+                    product_id: item.id,
+                    product_name: item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    subtotal: item.subtotal,
+                    cup_size: item.cupSize || 'none'
+                }))
             })
         });
         const result = await response.json();
         submitBtn.disabled = false;
         submitBtn.textContent = orig;
         if (response.ok && result.success) {
-            cart.forEach(i=>i.voided=true);
+            // Clear cart after successful void
+            cart = [];
+            selectedCupSize = {};
             updateCart();
             closeSaleVoidModal();
-            alert('Sale cancelled and recorded (admin authorized)');
-        } else if (response.status===401) {
+            alert('Cart voided and recorded (admin authorized)');
+        } else if (response.status === 401) {
             alert('Invalid admin password');
+        } else if (response.status === 429) {
+            alert('Too many failed attempts. Please wait before trying again.');
         } else {
-            alert('Error: ' + (result.error||'Unable to void sale'));
+            alert('Error: ' + (result.error || 'Unable to void cart'));
         }
     } catch(err) {
         submitBtn.disabled = false;
         submitBtn.textContent = orig;
         alert('Error contacting server');
+        console.error('Void error:', err);
     }
 });
 
@@ -462,27 +529,31 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
         return;
     }
     
-    // Create hidden form for direct submission
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = 'process-sale.php';
-    
-    // Add all data as hidden fields
-    const fields = {
+    // Prepare sale data for API
+    const saleData = {
         customer_name: document.getElementById('customerName').value,
-        customer_phone: '',
         payment_method: document.getElementById('paymentMethod').value,
         subtotal: subtotal,
         tax: tax,
         discount: discount,
         total: total,
-        paid: paid,
+        amount_paid: paid,
         change: paid - total,
-        items: cart
+        items: activeItems.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+            cup_size: item.cupSize || 'none',
+            cup_id: item.cupId || null
+        }))
     };
     
+    console.log('Sale data being sent:', saleData); // Debug log
+    
     try {
-        const response = await fetch('api/process-sale.php', {
+        const response = await secureFetch('api/process-sale.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

@@ -1,8 +1,12 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
+require_once 'includes/security.php';
 
+setSecurityHeaders();
 requireLogin();
+checkPageAccess();
+
 $user = getCurrentUser();
 
 // Get sales with pagination
