@@ -1,9 +1,20 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
+require_once 'includes/security.php';
+
+// Set security headers
+setSecurityHeaders();
 
 requireLogin();
+
+// Check page access based on role
+checkPageAccess();
+
 $user = getCurrentUser();
+
+// Generate CSRF token for AJAX requests
+$csrfToken = getCSRFTokenForAjax();
 
 // Get all active products with categories
 $products = $conn->query("
@@ -16,6 +27,24 @@ $products = $conn->query("
 
 // Get categories for filter
 $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC");
+
+// Get product cup sizes for JavaScript
+$cupSizesQuery = $conn->query("
+    SELECT pcs.product_id, pcs.cup_id, pcs.price, ci.cup_size 
+    FROM product_cup_sizes pcs
+    JOIN cup_inventory ci ON pcs.cup_id = ci.cup_id
+    WHERE ci.status = 'active'
+    ORDER BY pcs.product_id, ci.cup_id
+");
+
+$productCupSizes = [];
+while ($row = $cupSizesQuery->fetch_assoc()) {
+    $productCupSizes[$row['product_id']][] = [
+        'cup_id' => (int)$row['cup_id'],
+        'cup_size' => $row['cup_size'],
+        'price' => (float)$row['price']
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -200,6 +229,37 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
 
         .product-card:hover::before {
             opacity: 1;
+        }
+
+        .cup-size-buttons {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin: 8px 0;
+        }
+
+        .cup-btn {
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            background: #f8f8f8;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #555;
+        }
+
+        .cup-btn:hover {
+            border-color: #d32f2f;
+            color: #d32f2f;
+            background: #fff;
+        }
+
+        .cup-btn.selected {
+            border-color: #d32f2f;
+            background: #d32f2f;
+            color: white;
         }
 
         .product-card h4 {
@@ -719,18 +779,47 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
                 </div>
                 
                 <div class="product-grid">
-                    <?php while ($product = $products->fetch_assoc()): ?>
+                    <?php while ($product = $products->fetch_assoc()): 
+                        $hasCupSizes = isset($productCupSizes[$product['product_id']]);
+                        $cupSizesJson = $hasCupSizes ? htmlspecialchars(json_encode($productCupSizes[$product['product_id']])) : '[]';
+                        $basePrice = $product['price'];
+                        // If product has cup sizes, use the first cup size price as base
+                        if ($hasCupSizes) {
+                            $basePrice = $productCupSizes[$product['product_id']][0]['price'];
+                        }
+                    ?>
                         <div class="product-card"
                              data-id="<?php echo $product['product_id']; ?>"
                              data-code="<?php echo htmlspecialchars($product['product_code']); ?>"
                              data-name="<?php echo htmlspecialchars($product['product_name']); ?>"
-                             data-price="<?php echo $product['selling_price']; ?>"
+                             data-price="<?php echo $basePrice; ?>"
                              data-stock="<?php echo $product['stock_quantity']; ?>"
                              data-category="<?php echo $product['category_id']; ?>"
-                             onclick="addToCart(this)">
+                             data-is-drink="<?php echo ($product['requires_cup'] || $product['is_drink']) ? 'true' : 'false'; ?>"
+                             data-cup-sizes='<?php echo $cupSizesJson; ?>'
+                             onclick="handleProductClick(this, event)">
                              
                             <h4><?php echo htmlspecialchars($product['product_name']); ?></h4>
-                            <div class="price">₱<?php echo number_format($product['selling_price'], 2); ?></div>
+                            
+                            <?php if ($hasCupSizes && count($productCupSizes[$product['product_id']]) > 0): ?>
+                                <div class="cup-size-buttons">
+                                    <?php foreach ($productCupSizes[$product['product_id']] as $cupSize): ?>
+                                        <button type="button" class="cup-btn" 
+                                                data-cup-id="<?php echo $cupSize['cup_id']; ?>"
+                                                data-cup-size="<?php echo $cupSize['cup_size']; ?>"
+                                                data-price="<?php echo $cupSize['price']; ?>"
+                                                onclick="selectCupSize(this, event)">
+                                            <?php echo $cupSize['cup_size']; ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="price" data-base-price="<?php echo $basePrice; ?>">
+                                    ₱<?php echo number_format($basePrice, 2); ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="price">₱<?php echo number_format($product['price'], 2); ?></div>
+                            <?php endif; ?>
+                            
                             <div class="stock">Stock: <?php echo $product['stock_quantity']; ?></div>
                         </div>
                     <?php endwhile; ?>
@@ -974,6 +1063,13 @@ $categories = $conn->query("SELECT * FROM categories ORDER BY category_name ASC"
     </div>
 </div>
 
+<!-- Security: CSRF Token for AJAX requests -->
+<script>
+    window.POS_CONFIG = {
+        csrfToken: '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>',
+        userRole: '<?php echo htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8'); ?>'
+    };
+</script>
 <script src="js/pos.js"></script>
 </body>
 </html>

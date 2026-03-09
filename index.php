@@ -1,8 +1,17 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
+require_once 'includes/security.php';
+require_once 'includes/inventory_functions.php';
+
+// Set security headers
+setSecurityHeaders();
 
 requireLogin();
+
+// Check page access based on role
+checkPageAccess();
+
 $user = getCurrentUser();
 
 // Redirect cashiers to POS
@@ -10,6 +19,9 @@ if ($user['role'] === 'cashier') {
     header('Location: pos.php');
     exit();
 }
+
+// Get low stock alerts
+$lowStockAlerts = getLowStockAlerts();
 
 // Get statistics
 $stats = [];
@@ -29,7 +41,7 @@ $stats['today_sales'] = $today['total'];
 $stats['today_transactions'] = $today['count'];
 
 // Total Inventory Value
-$result = $conn->query("SELECT COALESCE(SUM(stock_quantity * cost_price), 0) as value FROM products WHERE status = 'active'");
+$result = $conn->query("SELECT COALESCE(SUM(stock_quantity * cost), 0) as value FROM products WHERE status = 'active'");
 $stats['inventory_value'] = $result->fetch_assoc()['value'];
 
 // Recent Sales with pagination

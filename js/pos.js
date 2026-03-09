@@ -2,13 +2,19 @@
 let cart = [];
 let selectedCupSize = {};
 
+// Test if JavaScript is loading
+console.log('POS JavaScript loaded successfully!');
+alert('JavaScript is working!');
+
 // Select cup size for drink
 function selectCupSize(button, event) {
     event.stopPropagation();
     
     const productCard = button.closest('.product-card');
     const productId = productCard.dataset.id;
+    const cupId = parseInt(button.dataset.cupId);
     const cupSize = button.dataset.cupSize;
+    const price = parseFloat(button.dataset.price);
     
     // Clear previous selection for this product
     const cupButtons = productCard.querySelectorAll('.cup-btn');
@@ -17,10 +23,23 @@ function selectCupSize(button, event) {
     // Select current button
     button.classList.add('selected');
     
-    // Store selected cup size
-    selectedCupSize[productId] = cupSize;
+    // Store selected cup size with all details
+    selectedCupSize[productId] = {
+        cupId: cupId,
+        cupSize: cupSize,
+        price: price
+    };
     
-    console.log('Selected cup size:', productId, cupSize);
+    // Update the displayed price on the product card
+    const priceDiv = productCard.querySelector('.price');
+    if (priceDiv) {
+        priceDiv.textContent = '₱' + price.toFixed(2);
+    }
+    
+    // Update the data-price attribute for addToCart
+    productCard.dataset.price = price;
+    
+    console.log('Selected cup size:', productId, selectedCupSize[productId]);
     
     // Automatically add to cart after cup size selection
     setTimeout(() => {
@@ -32,22 +51,23 @@ function selectCupSize(button, event) {
 function handleProductClick(element, event) {
     console.log('Product clicked:', element.dataset);
     const isDrink = element.dataset.isDrink === 'true';
-    console.log('Is drink:', isDrink);
+    const hasCupSizes = element.dataset.cupSizes && element.dataset.cupSizes !== '[]';
+    console.log('Is drink:', isDrink, 'Has cup sizes:', hasCupSizes);
     
-    if (isDrink) {
-        // For all drinks (including Hot Coffee), require cup size selection
+    if (isDrink && hasCupSizes) {
+        // For drinks with cup sizes, require cup size selection
         const productId = element.dataset.id;
         console.log('Product ID:', productId);
         console.log('Selected cup sizes:', selectedCupSize);
         
         if (!selectedCupSize[productId]) {
-            alert('Please select a cup size (12oz or 16oz) for this drink!');
+            alert('Please select a cup size for this drink!');
             return;
         }
         // If cup size is selected, add to cart
         addToCart(element);
     } else {
-        // For non-drinks, add directly to cart
+        // For non-drinks or drinks without cup sizes, add directly to cart
         addToCart(element);
     }
 }
@@ -59,22 +79,26 @@ function addToCart(element) {
     const productId = element.dataset.id;
     const productCode = element.dataset.code;
     const productName = element.dataset.name;
-    const productPrice = parseFloat(element.dataset.price);
     const productStock = parseInt(element.dataset.stock);
-    const categoryId = element.dataset.category;
+    const isDrink = element.dataset.isDrink === 'true';
     
-    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, categoryId }); // Debug log
+    console.log('Product details:', { productId, productCode, productName, productPrice, productStock, isDrink }); // Debug log
     
-    // Check if product is a drink based on category
-    const isDrink = ['Coffee Drinks', 'Hot Coffee', 'Iced Coffee', 'Matcha', 'Other Beverages'].includes(categoryId);
-    
+    // Check if it's a drink and cup size is selected
     if (isDrink && !selectedCupSize[productId]) {
-        alert('Please select a cup size for this drink');
+        alert('Please select a cup size (12oz or 16oz) for this drink!');
         return;
     }
     
-    // Create unique key for cart items (product + cup size)
+    if (productStock <= 0) {
+        alert('Product is out of stock!');
+        return;
+    }
+    
+    // Get cup size for drinks
     const cupSize = isDrink ? selectedCupSize[productId] : 'none';
+    
+    // Create unique key for cart items (product + cup size)
     const cartKey = isDrink ? `${productId}_${cupSize}` : productId;
     
     // Check if product already in cart
@@ -82,7 +106,7 @@ function addToCart(element) {
     
     if (existingItem) {
         console.log('Product already in cart, updating quantity'); // Debug log
-        if (existingItem.quantity < productStock) {
+        if (existingItem.quantity < productStock || isDrink) {
             existingItem.quantity++;
             existingItem.subtotal = existingItem.quantity * existingItem.price;
             console.log('Updated existing item:', existingItem); // Debug log
@@ -102,6 +126,7 @@ function addToCart(element) {
             stock: productStock,
             subtotal: productPrice,
             cupSize: cupSize,
+            cupId: cupId,
             isDrink: isDrink
         };
         console.log('New item created:', newItem); // Debug log
@@ -120,9 +145,9 @@ function updateCart() {
         cartItemsDiv.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px 0;">Cart is empty</p>';
     } else {
         cartItemsDiv.innerHTML = cart.map((item, index) => `
-            <div class="cart-item ${item.voided ? 'voided' : ''}" data-sale-item-id="${item.id || 'temp-' + index}">
+            <div class="cart-item" data-sale-item-id="${item.id || 'temp-' + index}">
                 <div class="cart-item-details">
-                    <h4>${item.name} ${item.voided ? '<span style="color: #d32f2f; font-size: 11px;">(VOIDED)</span>' : ''}</h4>
+                    <h4>${item.name}</h4>
                     <p>₱${item.price.toFixed(2)} × ${item.quantity}</p>
                     ${item.voidReason ? `<p style="font-size: 11px; color: #666;">Reason: ${item.voidReason}</p>` : ''}
                 </div>
@@ -139,7 +164,7 @@ function updateCart() {
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
     
     updateTotals();
@@ -309,340 +334,45 @@ document.getElementById('voidForm')?.addEventListener('submit', function(e) {
         alert('Please enter a reason for voiding the sale');
         return;
     }
-    
-    // Simple admin password check - case insensitive and trimmed
-    const adminPassword = document.getElementById('adminPassword').value.trim().toLowerCase();
-    if (adminPassword !== 'admin') {
-        alert('Invalid admin password');
-        return;
-    }
-    
-    // Clear cart locally without affecting inventory
     const submitBtn = this.querySelector('button[type="submit"]');
     const orig = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Processing...';
     
     try {
-        // Mark all items as voided locally (for display purposes)
-        cart.forEach(item => {
-            item.voided = true;
-            item.voidReason = reason;
-        });
-        
-        // Calculate total of voided items
-        const totalVoided = cart.reduce((sum, item) => sum + item.subtotal, 0);
-        
-        // Save void to database via fetch API
-        const voidData = new URLSearchParams({
-            void_type: 'entire_sale',
-            item_name: 'Entire Sale (' + cart.length + ' items)',
-            item_price: 0,
-            quantity: cart.length,
-            subtotal: totalVoided,
-            reason: reason,
-            cart_items: JSON.stringify(cart.map(item => ({
-                id: item.id,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price,
-                subtotal: item.subtotal
-            })))
-        });
-        
-        fetch('save-void.php', {
+        // send current cart along with request so server can audit what was cancelled
+        const response = await fetch('api/void_item.php', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: voidData
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            // Void saved successfully
-            recordVoid('entire_sale', null, reason, cart);
-            cart = [];
-            updateCart();
-            closeSaleVoidModal();
-            alert('Sale voided successfully - inventory not affected');
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error saving void: ' + error.message);
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                sale_item_id: 0,
+                admin_password: adminPassword,
+                void_reason: reason,
+                cart_items: cart
+            })
         });
-        
-    } catch(err) {
-        console.error('Void error:', err);
-        alert('Error voiding sale: ' + err.message);
-    } finally {
+        const result = await response.json();
         submitBtn.disabled = false;
         submitBtn.textContent = orig;
-    }
-});
-
-// Smart void function - handles individual item or entire sale
-function smartVoid() {
-    if (cart.length === 0) {
-        alert('Cart is empty!');
-        return;
-    }
-    
-    // Count non-voided items
-    const activeItems = cart.filter(item => !item.voided);
-    
-    if (activeItems.length === 0) {
-        alert('All items are already voided!');
-        return;
-    }
-    
-    if (activeItems.length === 1) {
-        // Only one active item - void it individually
-        const activeIndex = cart.findIndex(item => !item.voided);
-        openItemVoidModal(activeIndex);
-    } else {
-        // Multiple items - ask what to void
-        const choice = confirm(`There are ${activeItems.length} items in cart.\n\nClick OK to void the entire sale.\nClick CANCEL to void individual items.`);
-        if (choice) {
-            // Void entire sale
-            openSaleVoidModal();
+        if (response.ok && result.success) {
+            cart.forEach(i=>i.voided=true);
+            updateCart();
+            closeSaleVoidModal();
+            alert('Sale cancelled and recorded (admin authorized)');
+        } else if (response.status===401) {
+            alert('Invalid admin password');
         } else {
-            // Let user choose which item to void
-            alert('Please remove individual items from cart using the quantity controls, then void the remaining sale.');
+            alert('Error: ' + (result.error||'Unable to void sale'));
         }
-    }
-}
-let currentVoidItemIndex = null;
-
-function openItemVoidModal(index) {
-    console.log('Opening void modal for item index:', index);
-    console.log('Cart:', cart);
-    
-    currentVoidItemIndex = index;
-    const item = cart[index];
-    
-    // Check if modal elements exist
-    const modal = document.getElementById('itemVoidModal');
-    const itemName = document.getElementById('itemVoidItemName');
-    const itemPrice = document.getElementById('itemVoidItemPrice');
-    const password = document.getElementById('itemVoidPassword');
-    const reason = document.getElementById('itemVoidReason');
-    
-    console.log('Modal elements found:', {
-        modal: !!modal,
-        itemName: !!itemName,
-        itemPrice: !!itemPrice,
-        password: !!password,
-        reason: !!reason
-    });
-    
-    if (!modal || !itemName || !itemPrice || !password || !reason) {
-        console.error('Void modal elements not found!');
-        alert('Error: Void modal elements not found');
-        return;
-    }
-    
-    // Set item name in modal using unique IDs
-    itemName.textContent = item.name;
-    itemPrice.textContent = '₱' + item.subtotal.toFixed(2);
-    
-    // Reset form
-    password.value = '';
-    reason.value = '';
-    document.getElementById('itemVoidCharCount').textContent = '0';
-    
-    // Show modal
-    modal.classList.add('active');
-    setTimeout(() => password.focus(), 100);
-}
-
-function closeItemVoidModal() {
-    document.getElementById('itemVoidModal').classList.remove('active');
-    document.getElementById('itemVoidForm').reset();
-    currentVoidItemIndex = null;
-}
-
-// Item void form submission
-document.getElementById('itemVoidForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    if (currentVoidItemIndex === null) return;
-    
-    const reason = document.getElementById('itemVoidReason').value.trim();
-    
-    if (!reason) {
-        alert('Please enter a reason for voiding this item');
-        return;
-    }
-    
-    // Admin password check - case insensitive and trimmed
-    const adminPassword = document.getElementById('itemVoidPassword').value.trim().toLowerCase();
-    if (adminPassword !== 'admin') {
-        alert('Invalid admin password');
-        return;
-    }
-    
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const orig = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Processing...';
-    
-    try {
-        const item = cart[currentVoidItemIndex];
-        
-        // Mark item as voided
-        item.voided = true;
-        item.voidReason = reason;
-        item.voidedAt = new Date().toISOString();
-        item.voidedBy = 'Admin';
-        
-        // Save void to database via fetch API
-        const voidData = new URLSearchParams({
-            void_type: 'individual_item',
-            item_name: item.name,
-            item_price: item.price,
-            quantity: item.quantity,
-            subtotal: item.subtotal,
-            reason: reason,
-            cart_items: JSON.stringify([{
-                id: item.id,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price,
-                subtotal: item.subtotal
-            }])
-        });
-        
-        fetch('save-void.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: voidData
-        })
-        .then(response => {
-            console.log('Fetch response status:', response.status);
-            console.log('Fetch response ok:', response.ok);
-            return response.json();
-        })
-        .then(data => {
-            console.log('Fetch response data:', data);
-            if (data.success) {
-                // Void saved successfully
-                recordVoid('individual_item', item.name, reason, [item]);
-                updateCart();
-                closeItemVoidModal();
-                alert(`Item "${item.name}" voided successfully`);
-            } else {
-                console.error('Void save failed:', data.message);
-                alert('Error saving void: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Fetch error:', error);
-            alert('Error saving void: ' + error.message);
-        });
-        
     } catch(err) {
         console.error('Item void error:', err);
         alert('Error voiding item: ' + err.message);
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = orig;
+        alert('Error contacting server');
     }
 });
-
-// Character counter for item void reason
-document.getElementById('itemVoidReason')?.addEventListener('input', function() {
-    const cnt = this.value.length;
-    document.getElementById('itemVoidCharCount').textContent = cnt;
-    if (cnt > 500) {
-        this.value = this.value.substring(0, 500);
-        document.getElementById('itemVoidCharCount').textContent = '500';
-    }
-});
-
-// Record void for reporting
-function recordVoid(type, itemName, reason, items) {
-    const voidRecord = {
-        id: 'VOID-' + Date.now(),
-        type: type,
-        itemName: itemName,
-        reason: reason,
-        items: items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
-        totalAmount: items.reduce((sum, item) => sum + item.subtotal, 0),
-        timestamp: new Date().toISOString(),
-        cashier: 'Current User'
-    };
-    
-    // Get existing voids
-    let voids = JSON.parse(localStorage.getItem('voidHistory') || '[]');
-    voids.unshift(voidRecord);
-    
-    // Keep only last 100 voids
-    if (voids.length > 100) {
-        voids = voids.slice(0, 100);
-    }
-    
-    localStorage.setItem('voidHistory', JSON.stringify(voids));
-    console.log('Void recorded:', voidRecord);
-}
-
-// View void report
-function viewVoidReport() {
-    const voids = JSON.parse(localStorage.getItem('voidHistory') || '[]');
-    
-    if (voids.length === 0) {
-        alert('No voids recorded');
-        return;
-    }
-    
-    let reportHTML = `
-        <div id="voidReport" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; overflow: auto;">
-            <div style="max-width: 800px; margin: 20px auto; background: white; padding: 30px; border-radius: 8px; max-height: 90vh; overflow: auto;">
-                <h2 style="margin-bottom: 20px; color: #d32f2f;">Void Report</h2>
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background: #f5f5f5;">
-                            <th style="padding: 10px; text-align: left;">Date/Time</th>
-                            <th style="padding: 10px; text-align: left;">Type</th>
-                            <th style="padding: 10px; text-align: left;">Item/Sale</th>
-                            <th style="padding: 10px; text-align: right;">Amount</th>
-                            <th style="padding: 10px; text-align: left;">Reason</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    `;
-    
-    voids.forEach(voidRec => {
-        const date = new Date(voidRec.timestamp).toLocaleString();
-        const type = voidRec.type === 'entire_sale' ? 'Entire Sale' : 'Individual Item';
-        const item = voidRec.itemName || (voidRec.items.length > 1 ? 'Multiple Items' : voidRec.items[0]?.name);
-        
-        reportHTML += `
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 10px;">${date}</td>
-                <td style="padding: 10px;">${type}</td>
-                <td style="padding: 10px;">${item}</td>
-                <td style="padding: 10px; text-align: right;">₱${voidRec.totalAmount.toFixed(2)}</td>
-                <td style="padding: 10px; font-size: 12px;">${voidRec.reason}</td>
-            </tr>
-        `;
-    });
-    
-    reportHTML += `
-                    </tbody>
-                </table>
-                <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="document.getElementById('voidReport').remove()" style="background: #666; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer;">Close</button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.insertAdjacentHTML('beforeend', reportHTML);
-}
 
 // Display cart items in modal
 function displayModalCart() {
@@ -754,80 +484,49 @@ document.getElementById('checkoutForm')?.addEventListener('submit', async functi
         return;
     }
     
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const origText = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Processing...';
+    // Create hidden form for direct submission
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'process-sale.php';
+    
+    // Add all data as hidden fields
+    const fields = {
+        customer_name: document.getElementById('customerName').value,
+        customer_phone: '',
+        payment_method: document.getElementById('paymentMethod').value,
+        subtotal: subtotal,
+        tax: tax,
+        discount: discount,
+        total: total,
+        paid: paid,
+        change: paid - total,
+        items: cart
+    };
     
     try {
-        // Generate invoice number locally
-        const invoiceNumber = 'INV-' + Date.now();
-        const customerName = document.getElementById('customerName').value;
-        const paymentMethod = document.getElementById('paymentMethod').value;
-        const change = paid - total;
-        const saleDate = new Date().toLocaleString();
+        const response = await fetch('api/process-sale.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(saleData)
+        });
         
-        // Create hidden form for submission
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'save-sale.php';
-        form.style.display = 'none';
+        const result = await response.json();
         
-        // Add form fields
-        const fields = {
-            invoice_number: invoiceNumber,
-            customer_name: customerName,
-            payment_method: paymentMethod,
-            subtotal: subtotal,
-            tax: tax,
-            discount: discount,
-            total: total,
-            paid: paid,
-            change_amount: change,
-            items: JSON.stringify(activeItems.map(item => ({
-                product_id: item.id,
-                product_name: item.name,
-                quantity: item.quantity,
-                unit_price: item.price,
-                subtotal: item.subtotal,
-                cup_size: item.cupSize || null
-            })))
-        };
-        
-        for (const [key, value] of Object.entries(fields)) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = value;
-            form.appendChild(input);
+        if (result.success) {
+            alert('Sale completed successfully!\nInvoice: ' + result.invoice);
+            cart = [];
+            updateCart();
+            closeCheckout();
+            
+            // Optionally print receipt or redirect
+            if (confirm('Would you like to view the receipt?')) {
+                window.open('receipt.php?invoice=' + result.invoice, '_blank');
+            }
+        } else {
+            alert('Error: ' + result.message);
         }
-        
-        document.body.appendChild(form);
-        
-        // Store receipt data for display
-        const receiptData = {
-            invoice: invoiceNumber,
-            date: saleDate,
-            customer: customerName || 'Walk-in Customer',
-            paymentMethod: paymentMethod,
-            items: activeItems,
-            subtotal: subtotal,
-            tax: tax,
-            discount: discount,
-            total: total,
-            paid: paid,
-            change: change
-        };
-        localStorage.setItem('currentReceipt', JSON.stringify(receiptData));
-        
-        // Clear cart and submit form
-        cart = [];
-        updateCart();
-        closeCheckout();
-        
-        // Submit form to save sale
-        form.submit();
-        
     } catch (error) {
         console.error('Error processing sale:', error);
         alert('Error processing sale: ' + error.message);
